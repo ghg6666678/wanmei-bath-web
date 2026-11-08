@@ -1,0 +1,13 @@
+# 本地账号票据与个人信息，绝不提交
+config.json
+login_raw.json
+pending_login.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 运行产物
+*.log

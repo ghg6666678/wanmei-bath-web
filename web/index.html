@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>洗澡</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#f4f6fb; --card:#fff; --ink:#101828; --ink2:#667085; --ink3:#98a2b3;
+  --line:#eaecf0; --brand:#2563eb; --brand2:#38bdf8; --ok:#12b76a; --warn:#f79009; --danger:#f04438;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px -12px rgba(16,24,40,.18);
+  --r:18px;
+}
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#0b1220; --card:#141b2d; --ink:#f2f5fa; --ink2:#98a4b8; --ink3:#6b7891;
+    --line:#212b42; --brand:#4f8dff; --brand2:#2dd4bf;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px -16px rgba(0,0,0,.8); }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  padding-bottom:calc(64px + env(safe-area-inset-bottom));
+  -webkit-font-smoothing:antialiased;
+  max-width:560px;margin:0 auto;
+}
+header{
+  position:sticky;top:0;z-index:30;
+  padding:calc(14px + env(safe-area-inset-top)) 18px 12px;
+  background:linear-gradient(180deg,var(--bg) 70%,transparent);
+  backdrop-filter:blur(12px);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,var(--brand),var(--brand2));
+  display:grid;place-items:center;color:#fff;font-weight:700;font-size:16px;box-shadow:var(--shadow)}
+h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px}
+.sub{font-size:12px;color:var(--ink2);margin-top:1px}
+.iconbtn{border:0;background:var(--card);color:var(--ink2);width:34px;height:34px;border-radius:12px;
+  display:grid;place-items:center;box-shadow:var(--shadow);font-size:16px}
+main{padding:4px 16px 8px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px;border:1px solid var(--line)}
+
+/* 余额 */
+.bal{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.bal .label{font-size:12px;color:var(--ink2);display:flex;align-items:center;gap:6px}
+.bal .num{font-size:30px;font-weight:700;letter-spacing:-.5px;line-height:1.15;margin-top:4px}
+.bal .num small{font-size:15px;font-weight:600;color:var(--ink2);margin-right:2px}
+.pill{font-size:11px;padding:3px 9px;border-radius:99px;background:rgba(18,183,106,.12);color:var(--ok);font-weight:600;white-space:nowrap}
+.pill.warn{background:rgba(247,144,9,.14);color:var(--warn)}
+.pill.danger{background:rgba(240,68,56,.13);color:var(--danger)}
+.btn{border:0;border-radius:13px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;
+  background:var(--brand);color:#fff;transition:transform .12s ease,opacity .12s;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn.ghost{background:transparent;color:var(--brand);border:1.5px solid var(--line)}
+.btn.sm{padding:8px 13px;font-size:13px;border-radius:11px}
+.btn.danger{background:rgba(240,68,56,.1);color:var(--danger)}
+.btn[disabled]{opacity:.45;pointer-events:none}
+
+/* 预约卡 */
+.order{position:relative;overflow:hidden}
+.order:before{content:"";position:absolute;inset:0 0 auto 0;height:3px;
+  background:linear-gradient(90deg,var(--brand),var(--brand2))}
+.order .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.order h2{margin:0;font-size:18px;font-weight:650}
+.meta{font-size:12.5px;color:var(--ink2);margin-top:4px;display:flex;flex-direction:column;gap:2px}
+.code{display:flex;align-items:baseline;gap:8px;margin-top:14px;padding:12px 14px;
+  background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(56,189,248,.08));
+  border-radius:14px;border:1px dashed rgba(37,99,235,.28)}
+.code .k{font-size:12px;color:var(--ink2)}
+.code .v{font-size:26px;font-weight:800;letter-spacing:5px;font-variant-numeric:tabular-nums;color:var(--brand)}
+.countdown{margin-left:auto;font-size:12px;color:var(--ink2);text-align:right}
+
+/* 列表 */
+.sec-title{display:flex;align-items:center;justify-content:space-between;margin:2px 4px -4px}
+.sec-title h3{font-size:13px;font-weight:650;color:var(--ink2);margin:0;letter-spacing:.4px}
+.room{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}
+/* 首尾行去掉内边距，避免卡片内出现比行间距更大的空白 */
+.room:first-child{padding-top:0}
+.room:last-child{border-bottom:0;padding-bottom:0}
+.room .name{font-weight:600;font-size:14.5px;display:flex;align-items:center;gap:6px}
+.room .info{font-size:11.5px;color:var(--ink3);margin-top:2px}
+.bar{height:4px;border-radius:99px;background:var(--line);margin-top:7px;overflow:hidden;width:100%}
+.bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--ok),#32d583)}
+.room .grow{flex:1;min-width:0}
+.badge{font-size:11px;color:var(--ok);font-weight:600}
+.pinbtn{background:none;border:0;padding:10px;margin-left:auto;margin-right:-8px;color:var(--ink2);opacity:1;cursor:pointer;line-height:0;flex:none}
+.pinbtn svg{width:18px;height:18px}
+.pinbtn.on{color:var(--brand);opacity:1}
+.pinmark{font-size:10px;font-weight:600;color:var(--brand);background:rgba(37,99,235,.12);padding:1px 5px;border-radius:5px;flex:none}
+
+/* 底部导航 */
+nav{
+  position:fixed;left:0;right:0;bottom:0;z-index:40;
+  display:flex;justify-content:space-around;align-items:center;
+  padding:8px 0 calc(8px + env(safe-area-inset-bottom));
+  background:color-mix(in srgb,var(--card) 92%,transparent);
+  border-top:1px solid var(--line);backdrop-filter:blur(16px);
+  max-width:560px;margin:0 auto;
+}
+nav button{border:0;background:none;color:var(--ink3);font-size:11px;display:flex;flex-direction:column;
+  align-items:center;gap:3px;padding:4px 18px;font-weight:600}
+nav button.on{color:var(--brand)}
+nav svg{width:22px;height:22px}
+
+/* 弹层 */
+.sheet-mask{position:fixed;inset:0;background:rgba(16,24,40,.45);z-index:50;opacity:0;
+  pointer-events:none;transition:opacity .22s}
+.sheet-mask.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;background:var(--card);
+  border-radius:24px 24px 0 0;padding:10px 18px calc(20px + env(safe-area-inset-bottom));
+  transform:translateY(102%);transition:transform .26s cubic-bezier(.32,.72,0,1);
+  max-width:560px;margin:0 auto;max-height:88vh;overflow:auto}
+.sheet.on{transform:translateY(0)}
+.sheet .bar-h{width:38px;height:4px;border-radius:99px;background:var(--line);margin:2px auto 14px}
+.sheet h3{margin:0 0 4px;font-size:17px}
+.sheet .hint{font-size:12.5px;color:var(--ink2);margin-bottom:14px;line-height:1.55}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12.5px;color:var(--ink2);margin-bottom:7px;font-weight:600}
+input[type=time],input[type=text],input[type=password]{
+  width:100%;padding:13px 14px;border-radius:13px;border:1.5px solid var(--line);
+  background:var(--bg);color:var(--ink);font-size:16px;font-family:inherit;outline:none}
+input:focus{border-color:var(--brand)}
+.warnbox{font-size:12.5px;padding:11px 13px;border-radius:12px;margin-bottom:14px;line-height:1.6;
+  background:rgba(247,144,9,.09);color:#b54708}
+@media (prefers-color-scheme:dark){ .warnbox{color:#fdb022} }
+
+.toast{position:fixed;left:50%;top:calc(18px + env(safe-area-inset-top));transform:translate(-50%,-16px);
+  background:#101828;color:#fff;padding:11px 18px;border-radius:12px;font-size:13.5px;z-index:80;
+  opacity:0;transition:.24s;max-width:88vw;text-align:center;box-shadow:0 12px 30px rgba(0,0,0,.3)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast.err{background:#b42318}
+.empty{text-align:center;color:var(--ink3);font-size:13px;padding:26px 0}
+.rec{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.rec:last-child{border-bottom:0}
+.rec .r{color:var(--ink2);font-size:12px}
+
+/* 设置行 */
+.setrow{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}
+.setrow:first-child{padding-top:0}
+.setrow:last-child{border-bottom:0;padding-bottom:0}
+.setrow .name{font-weight:600;font-size:14.5px}
+.setrow .info{font-size:11.5px;color:var(--ink3);margin-top:2px}
+.setrow .val{display:flex;align-items:center;gap:3px;color:var(--brand);font-weight:650;font-size:14px;white-space:nowrap}
+/* 数值列等宽右对齐，保证各行的数值与箭头右边缘对齐 */
+.setrow .val span{min-width:68px;text-align:right;display:inline-block;font-variant-numeric:tabular-nums}
+.setrow .val i{font-style:normal;color:var(--ink3);font-size:19px;line-height:1;margin-top:-2px}
+.tipnote{font-size:12px;color:var(--ink3);line-height:1.7;padding:0 4px;margin-top:8px}
+
+/* 金额网格 */
+.amtgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.amtgrid button{padding:13px 0;border-radius:13px;border:1.5px solid var(--line);background:var(--bg);
+  color:var(--ink);font-size:16px;font-weight:650;font-family:inherit;transition:.15s}
+.amtgrid button.on{border-color:var(--brand);color:var(--brand);background:rgba(37,99,235,.08)}
+
+/* 选择器 */
+.picklist{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;max-height:46vh;overflow:auto;padding-bottom:4px}
+.picklist button{padding:12px 0;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);
+  color:var(--ink);font-size:14px;font-weight:600;font-family:inherit}
+.picklist button.on{border-color:var(--brand);color:var(--brand);background:rgba(37,99,235,.08)}
+.monthpick{font-size:12px;color:var(--brand);font-weight:600;padding:4px 10px;border-radius:99px;
+  line-height:1.25;background:rgba(37,99,235,.08);cursor:pointer;border:0;font-family:inherit}
+/* 记录页标题行带胶囊按钮，需要比默认（负边距）更宽松的间距，否则会贴到卡片上 */
+/* 内页（记录/我的）的标题不在 main 的 flex 流里，拿不到 gap，需自带宽间距 */
+#pageRec .sec-title, #pageMe .sec-title{margin:2px 4px 12px}
+/* 说明文字与下一个分区标题之间留出间隔，否则会贴在一起 */
+#pageMe .tipnote + .sec-title{margin-top:14px}
+/* 卡片后面接的分区标题同样需要间隔 */
+#pageMe section.card + .sec-title{margin-top:14px}
+.spin{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;
+  border-radius:50%;animation:sp .7s linear infinite;display:inline-block;vertical-align:-3px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo">浴</div>
+    <div>
+      <h1 id="hName">洗澡</h1>
+      <div class="sub" id="hSub">正在连接…</div>
+    </div>
+  </div>
+  <button class="iconbtn" id="btnRefresh" title="刷新">↻</button>
+</header>
+
+<main>
+  <!-- 余额 -->
+  <section class="card bal">
+    <div>
+      <div class="label">水控余额 <span id="balPill" class="pill">—</span></div>
+      <div class="num"><small>¥</small><span id="balNum">—</span></div>
+    </div>
+    <button class="btn" id="btnRecharge">充值</button>
+  </section>
+
+  <!-- 当前预约 -->
+  <section id="orderCard" class="card order hidden"></section>
+
+  <!-- 宿舍楼 -->
+  <div class="sec-title">
+    <h3>选择浴室</h3>
+    <span style="font-size:11.5px;color:var(--ink3)" id="srvTime"></span>
+  </div>
+  <section class="card" id="roomList"><div class="empty">加载中…</div></section>
+
+  <!-- 记录 -->
+  <div id="pageRec" class="hidden">
+    <div class="sec-title">
+      <h3>用水记录</h3>
+      <span class="monthpick" id="recMonth"></span>
+    </div>
+    <section class="card" id="recList"><div class="empty">加载中…</div></section>
+  </div>
+
+  <!-- 我的 -->
+  <div id="pageMe" class="hidden">
+    <div class="sec-title"><h3>消费限制</h3></div>
+    <section class="card">
+      <div class="setrow" id="rowTime">
+        <div class="grow">
+          <div class="name">消费限时</div>
+          <div class="info">单次最长使用时长，从设备开阀后累计</div>
+        </div>
+        <div class="val"><span id="valTime">—</span><i>›</i></div>
+      </div>
+      <div class="setrow" id="rowFare">
+        <div class="grow">
+          <div class="name">消费限额</div>
+          <div class="info">单次最高消费金额，从设备开阀后累计</div>
+        </div>
+        <div class="val"><span id="valFare">—</span><i>›</i></div>
+      </div>
+    </section>
+    <div class="tipnote">
+      达到限时或限额设备会自动关阀；想继续用，在设备上重新输入同一个验证码即可再开（验证码当日有效）。
+    </div>
+
+    <div class="sec-title"><h3>账号</h3></div>
+    <section class="card">
+      <div class="rec"><span>姓名</span><span class="r" id="meName">—</span></div>
+      <div class="rec"><span>学号</span><span class="r" id="meId">—</span></div>
+      <div class="rec"><span>学校</span><span class="r" id="meSchool">—</span></div>
+      <div class="rec"><span>登录态</span><span class="r" id="meToken">—</span></div>
+    </section>
+
+    <div class="sec-title"><h3>充值</h3></div>
+    <section class="card">
+      <div class="hint" style="font-size:12.5px;color:var(--ink2);line-height:1.65;margin-bottom:12px">
+        选择金额后跳转完美校园完成支付（与原版一致，微信支付）。
+      </div>
+      <div class="amtgrid" id="amtGrid"></div>
+      <button class="btn" style="width:100%;margin-top:12px;padding:14px" id="btnPay">去支付</button>
+    </section>
+
+    <div class="sec-title"><h3>设置</h3></div>
+    <section class="card">
+      <div class="hint" style="font-size:12.5px;color:var(--ink2);line-height:1.7;margin-bottom:12px">
+        登录信息由 <code>python login.py</code> 写入 <code>config.json</code>。<br>
+        换账号或会话过期时，在电脑上重新运行一次即可。
+      </div>
+      <button class="btn ghost" style="width:100%" id="btnReload">重新检测</button>
+    </section>
+  </div>
+</main>
+
+<nav>
+  <button data-tab="home" class="on">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+    洗澡
+  </button>
+  <button data-tab="rec">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+    记录
+  </button>
+  <button data-tab="me">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>
+    我的
+  </button>
+</nav>
+
+<!-- 预约弹层 -->
+<div class="sheet-mask" id="mask"></div>
+<div class="sheet" id="bookSheet">
+  <div class="bar-h"></div>
+  <h3 id="bkTitle">预约浴室</h3>
+  <div class="hint" id="bkHint"></div>
+  <div class="code" style="margin:0 0 14px">
+    <span class="k">验证码</span>
+    <span class="v" style="font-size:20px;letter-spacing:1px">提交后生成</span>
+  </div>
+  <div class="warnbox" id="bkWarn" style="display:none"></div>
+  <button class="btn" style="width:100%;padding:15px" id="bkSubmit">立即取码</button>
+</div>
+
+<!-- 确认弹层（替代 WebView 里很突兀的原生 confirm） -->
+<div class="sheet" id="cfSheet">
+  <div class="bar-h"></div>
+  <h3 id="cfTitle">确认</h3>
+  <div class="hint" id="cfMsg"></div>
+  <div style="display:flex;gap:9px;margin-top:16px">
+    <button class="btn ghost" style="flex:1;padding:14px" id="cfNo">再想想</button>
+    <button class="btn danger" style="flex:1;padding:14px" id="cfYes">确定</button>
+  </div>
+</div>
+
+<!-- 通用选择器 -->
+<div class="sheet" id="pickSheet">
+  <div class="bar-h"></div>
+  <h3 id="pickTitle">选择</h3>
+  <div class="hint" id="pickHint"></div>
+  <div class="picklist" id="pickList"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const state = {orders: [], rooms: [], cfg: {}, settings: {}, balance: null, serverOffset: 0, pickedRoom: null};
+
+function toast(msg, err) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast on' + (err ? ' err' : '');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.className = 'toast', 2600);
+}
+
+async function api(path, opt) {
+  const r = await fetch(path, Object.assign({headers: {'Content-Type': 'application/json'}}, opt || {}));
+  const j = await r.json().catch(() => ({ok: false, error: '返回解析失败'}));
+  if (!j.ok && j.error) {
+    const e = new Error(j.error);
+    e.needLogin = !!j.needLogin;
+    throw e;
+  }
+  return j;
+}
+
+/* ---------- 时间：用服务端时间校准，避开本地时钟偏差 ---------- */
+function pad(n) { return String(n).padStart(2, '0'); }
+function serverNow() {
+  return new Date(Date.now() + state.serverOffset);
+}
+function fmtClock(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function ceilMinute(d) {
+  const x = new Date(d);
+  x.setSeconds(0, 0);
+  if (d.getSeconds() > 0) x.setMinutes(x.getMinutes() + 1);
+  return x;
+}
+
+/* ---------- 渲染 ---------- */
+function renderBalance() {
+  const v = state.balance;
+  if (v === null || v === undefined) { $('#balNum').textContent = '—'; return; }
+  $('#balNum').textContent = Number(v).toFixed(2);
+  const p = $('#balPill');
+  if (Number(v) <= 0) { p.className = 'pill danger'; p.textContent = '余额不足'; }
+  else if (Number(v) < 5) { p.className = 'pill warn'; p.textContent = '偏低'; }
+  else { p.className = 'pill'; p.textContent = '正常'; }
+}
+
+function renderOrder() {
+  const card = $('#orderCard');
+  clearInterval(cdTimer);
+  if (!state.orders.length) {
+    card.classList.add('hidden');
+    card.innerHTML = '';
+    return;
+  }
+  card.classList.remove('hidden');
+  card.style.padding = '0';
+  card.innerHTML = state.orders.map((o, i) => {
+    const fare = (Number(o.max_fare_limit || 0) / 100).toFixed(2).replace(/\.00$/, '');
+    return `
+    <div class="orderitem" style="${i ? 'border-top:1px solid var(--line)' : ''};padding:16px">
+      <div class="top">
+        <div style="min-width:0">
+          <h2>${o.bathroomname || '已预约'}</h2>
+          <div class="meta">
+            <span>取码时间 ${o.orderdatetime || ''}</span>
+            <span>限时 ${o.max_time_limit || 30} 分钟 · 限额 ${fare} 元</span>
+          </div>
+        </div>
+        <span class="pill">当日有效</span>
+      </div>
+      <div class="code">
+        <span class="k">验证码</span>
+        <span class="v">${o.verificationcode || '------'}</span>
+        <span class="countdown" data-cd="${i}"></span>
+      </div>
+      ${i === 0 ? `<div class="tipnote" style="margin-top:11px">
+        到浴室设备上按任意键 → 输入验证码 → 按“确认”即可开阀。<br>
+        限时和限额都从<strong>开阀那一刻</strong>开始累计；用完后重新输入同一个验证码可以再开。
+      </div>` : ''}
+      <div style="display:flex;gap:9px;margin-top:13px">
+        <button class="btn ghost sm" style="flex:1" data-cancel="${o.orderno}" data-name="${o.bathroomname || ''}">取消预约</button>
+      </div>
+    </div>`;
+  }).join('');
+  card.querySelectorAll('button[data-cancel]').forEach(b => {
+    b.onclick = () => cancelOrder(b.dataset.cancel, b.dataset.name);
+  });
+  startCountdown();
+}
+
+let cdTimer = null;
+function startCountdown() {
+  clearInterval(cdTimer);
+  const tick = () => {
+    const els = document.querySelectorAll('[data-cd]');
+    if (!els.length) return clearInterval(cdTimer);
+    // 验证码当日有效：到当天 23:59:59 失效（按服务端时间算）
+    const now = serverNow();
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 0);
+    const diff = end.getTime() - now.getTime();
+    let text;
+    if (diff <= 0) text = '即将失效';
+    else {
+      const h = Math.floor(diff / 3600000), m = Math.floor(diff % 3600000 / 60000);
+      text = h > 0 ? `${h} 小时 ${m} 分后失效` : `${m} 分钟后失效`;
+    }
+    els.forEach(el => { el.textContent = text; });
+  };
+  tick();
+  cdTimer = setInterval(tick, 30000);
+}
+
+/* 浴室列表：按编号数字升序；置顶的排最前（置顶项存在 localStorage） */
+const PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 17v5"/><path d="M9 4h6v6.5l2 3.5H7l2-3.5V4z"/></svg>';
+
+function roomNo(r) {
+  const m = String(r.bathroomcode || '').match(/\d+/);
+  return m ? parseInt(m[0], 10) : 99999;
+}
+
+/* 从「一号宿舍a区」这类名称里取出宿舍号。
+   注意 bathroomcode 是浴室内部编号（029/030…），和宿舍号无关，不能拿来排。 */
+const CN_NUM = {'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10};
+function dormNo(r) {
+  const s = String(r.bathroomname || '');
+  const m = s.match(/([一二三四五六七八九十]+)\s*号/);
+  if (m) {
+    const t = m[1];
+    if (t === '十') return 10;
+    if (t.length === 1) return CN_NUM[t] || 99999;
+    if (t[0] === '十') return 10 + (CN_NUM[t[1]] || 0);
+    if (t[1] === '十') return (CN_NUM[t[0]] || 0) * 10 + (t[2] ? (CN_NUM[t[2]] || 0) : 0);
+    return CN_NUM[t[0]] || 99999;
+  }
+  const a = s.match(/(\d+)\s*号/);
+  return a ? parseInt(a[1], 10) : 99999;
+}
+/* 置顶项优先存进原生（WebView 的 file:// 页面里 localStorage 不保证可用），
+   浏览器里自动回落到 localStorage */
+function getPin() {
+  if (typeof Android !== 'undefined' && Android.getPinRoom) {
+    try { return Android.getPinRoom() || ''; } catch (e) { }
+  }
+  try { return localStorage.getItem('pinRoom') || ''; } catch (e) { return ''; }
+}
+function setPin(code) {
+  if (typeof Android !== 'undefined' && Android.setPinRoom) {
+    try { Android.setPinRoom(code || ''); return; } catch (e) { }
+  }
+  try {
+    if (code) localStorage.setItem('pinRoom', code);
+    else localStorage.removeItem('pinRoom');
+  } catch (e) { }
+}
+function togglePin(code) {
+  const c = String(code);
+  setPin(getPin() === c ? '' : c);
+  renderRooms();
+}
+
+function renderRooms() {
+  const box = $('#roomList');
+  if (!state.rooms.length) { box.innerHTML = '<div class="empty">没有可用浴室</div>'; return; }
+
+  const pin = getPin();
+  const rooms = state.rooms.slice().sort((a, b) => {
+    const d = dormNo(a) - dormNo(b);
+    return d !== 0 ? d : roomNo(a) - roomNo(b);
+  });
+  const pi = rooms.findIndex(r => String(r.bathroomcode) === pin);
+  if (pi > 0) rooms.unshift(rooms.splice(pi, 1)[0]);
+
+  const myOrder = state.orders[0];
+  box.innerHTML = rooms.map(r => {
+    const free = r.freetermnums ?? 0, total = r.sumtermnums ?? 0;
+    const pct = total ? Math.round(free / total * 100) : 0;
+    const booked = myOrder && myOrder.bathroomcode === r.bathroomcode;
+    const isPin = String(r.bathroomcode) === pin;
+    return `<div class="room">
+      <div class="grow">
+        <div class="name">
+          <span>${r.bathroomname}</span>
+          ${isPin ? '<span class="pinmark">置顶</span>' : ''}
+          <button class="pinbtn${isPin ? ' on' : ''}" data-pin="${r.bathroomcode}" aria-label="置顶">${PIN_SVG}</button>
+        </div>
+        <div class="info">空闲 <b style="color:var(--ok)">${free}</b> / ${total} · 空闲率 ${pct}%</div>
+        <div class="bar"><i style="width:${pct}%"></i></div>
+      </div>
+      ${booked
+        ? '<button class="btn sm ghost" disabled>已预约</button>'
+        : `<button class="btn sm" data-code="${r.bathroomcode}">预约</button>`}
+    </div>`;
+  }).join('');
+
+  box.querySelectorAll('button[data-code]').forEach(b => {
+    b.onclick = () => openBook(b.dataset.code);
+  });
+  box.querySelectorAll('button[data-pin]').forEach(b => {
+    b.onclick = (e) => { e.stopPropagation(); togglePin(b.dataset.pin); };
+  });
+}
+
+function renderMe() {
+  $('#meName').textContent = state.cfg.name || '—';
+  $('#meId').textContent = state.cfg.outid || '—';
+  $('#meSchool').textContent = state.cfg.school || '—';
+  $('#meToken').textContent = state.cfg.hasToken ? '有效' : '缺失';
+  const st = state.settings || {};
+  $('#valTime').textContent = st.max_time_limit ? st.max_time_limit + ' 分钟' : '—';
+  $('#valFare').textContent = st.max_fare_limit ? (st.max_fare_limit / 100) + ' 元' : '—';
+}
+
+async function loadAll() {
+  try {
+    const j = await api('/api/state');
+    state.cfg = j.config || {};
+    state.balance = j.balance;
+    state.orders = j.orders || [];
+    state.rooms = j.bathrooms || [];
+    state.settings = j.settings || j.limits || {};
+    // 用服务端 nowdate(HHMMSS) 校准
+    if (j.serverTime && j.serverTime.length >= 6) {
+      const now = new Date();
+      const srv = new Date(now);
+      srv.setHours(+j.serverTime.slice(0, 2), +j.serverTime.slice(2, 4), +j.serverTime.slice(4, 6), 0);
+      let off = srv.getTime() - now.getTime();
+      if (Math.abs(off) > 43200000) off -= 86400000 * Math.sign(off); // 跨天修正
+      state.serverOffset = off;
+      const big = Math.abs(off) > 60000;
+      $('#srvTime').textContent = '服务器 ' + fmtClock(srv) + (big ? ' · 已自动校准' : '');
+    }
+    $('#hName').textContent = state.cfg.name ? state.cfg.name + ' · 洗澡' : '洗澡';
+    $('#hSub').textContent = state.cfg.school || '';
+    renderBalance(); renderOrder(); renderRooms(); renderMe();
+  } catch (e) {
+    const msg = String(e.message || e);
+    const needLogin = e.needLogin || /登录态|token|登录/.test(msg);
+    if (needLogin) {
+      $('#roomList').innerHTML = `
+        <div style="text-align:center;padding:22px 6px">
+          <div style="font-size:15px;font-weight:650;margin-bottom:6px">还没有登录</div>
+          <div style="font-size:12.5px;color:var(--ink2);line-height:1.8;margin-bottom:16px">
+            在电脑上运行 <code>python login.py</code>，<br>
+            按提示输入手机号和短信验证码即可。
+          </div>
+          <button class="btn ghost" id="btnRetry" style="width:100%">重新检测</button>
+        </div>`;
+      const b = $('#btnRetry');
+      if (b) b.onclick = () => loadAll();
+      $('#orderCard').classList.add('hidden');
+      $('#balNum').textContent = '—';
+      $('#hSub').textContent = state.cfg.school || '';
+      toast(msg, true);
+      return;
+    }
+    toast(msg, true);
+    $('#roomList').innerHTML = `<div class="empty">加载失败：${msg}</div>`;
+  }
+}
+
+/* ---------- 预约 ---------- */
+function openBook(code) {
+  const room = state.rooms.find(r => r.bathroomcode === code)
+            || state.orders.find(o => o.bathroomcode === code);
+  if (!room) return;
+  state.pickedRoom = room;
+  const free = room.freetermnums ?? 0, total = room.sumtermnums ?? 0;
+  $('#bkTitle').textContent = '预约 · ' + (room.bathroomname || '');
+  $('#bkHint').textContent = `当前空闲 ${free} / ${total} 台。提交后立刻生成验证码，今日内到设备输入即可开阀。`;
+
+  const st = state.settings || {};
+  const fare = ((st.max_fare_limit || room.max_fare_limit || 200) / 100).toFixed(2).replace(/\.00$/, '');
+  const tmin = st.max_time_limit || room.max_time_limit || 30;
+
+  const w = $('#bkWarn');
+  const warns = [];
+  warns.push(`本次限时 ${tmin} 分钟、限额 ${fare} 元，均从设备开阀后开始累计。`);
+  if (state.balance !== null && Number(state.balance) <= 0) {
+    warns.push('水控余额为 0，开阀可能失败，建议先充值。');
+  }
+  w.innerHTML = warns.join('<br>');
+  w.style.display = 'block';
+  showSheet('#bookSheet');
+}
+
+$('#bkSubmit').onclick = async () => {
+  const room = state.pickedRoom;
+  // 不再让用户选时间：验证码当日有效、限时从开阀算，选时间没有意义。
+  // 直接取服务端当前时间（秒置 0），从根上避开「预约时间早于当前时间」。
+  const d = serverNow();
+  const dt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+  const btn = $('#bkSubmit');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+  try {
+    const j = await api('/api/book', {method: 'POST', body: JSON.stringify({
+      bathroomcode: room.bathroomcode, datetime: dt, verificationtype: '2'})});
+    hideSheet();
+    toast(j.message || '预约成功');
+    await loadAll();
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = '立即取码';
+  }
+};
+
+/* 通用确认弹层 */
+let __cfYes = null;
+function askConfirm(title, msg, yesText, onYes) {
+  $('#cfTitle').textContent = title;
+  $('#cfMsg').textContent = msg;
+  $('#cfYes').textContent = yesText || '确定';
+  __cfYes = onYes;
+  showSheet('#cfSheet');
+}
+$('#cfNo').onclick = hideSheet;
+$('#cfYes').onclick = () => {
+  hideSheet();
+  const f = __cfYes;
+  __cfYes = null;
+  if (f) setTimeout(f, 200);   /* 等弹层开始收起再执行，避免动作被动画打断 */
+};
+
+async function cancelOrder(orderno, name) {
+  askConfirm('取消预约',
+    `确定取消「${name || '该浴室'}」的预约吗？取消后验证码立即失效。`,
+    '取消预约',
+    async () => {
+      try {
+        const j = await api('/api/cancel', {method: 'POST', body: JSON.stringify({orderno})});
+        toast(j.message || '已取消');
+        await loadAll();
+      } catch (e) { toast(e.message, true); }
+    });
+}
+
+/* ---------- 记录 ---------- */
+let recMonth = '';
+
+function monthStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1); }
+
+async function loadRecords() {
+  const box = $('#recList');
+  if (!recMonth) recMonth = monthStr(serverNow());
+  $('#recMonth').textContent = recMonth.replace('-', ' 年 ') + ' 月';
+  box.innerHTML = '<div class="empty">加载中…</div>';
+  try {
+    const j = await api('/api/records?month=' + encodeURIComponent(recMonth));
+    const d = j.data;
+    if (!d || !d.data || !d.data.length) {
+      box.innerHTML = '<div class="empty">本月暂无用水记录</div>';
+      return;
+    }
+    const total = Number(d.totalfare || 0);
+    box.innerHTML = `
+      <div class="rec" style="padding-top:0">
+        <span style="font-weight:650">本月支出</span>
+        <span style="font-weight:700;color:var(--brand);font-size:16px">¥${total.toFixed(2)}</span>
+      </div>` + d.data.map(r => {
+        const fare = Number(r.opfare || 0);
+        const paid = String(r.status) === '1';
+        const title = r.termname ? `${r.termname}` : `设备 ${r.termid || ''}`;
+        return `<div class="rec">
+          <span style="min-width:0">
+            <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${title}</span>
+            <span class="r">${r.end_opdt || ''}${r.termid && r.termname ? ' · ' + r.termid : ''}</span>
+          </span>
+          <span style="text-align:right;white-space:nowrap">
+            <b>-${fare.toFixed(2)}</b>
+            <div class="r" style="color:${paid ? 'var(--ok)' : 'var(--warn)'}">${paid ? '已扣费' : '未扣费'}</div>
+          </span>
+        </div>`;
+      }).join('');
+  } catch (e) {
+    box.innerHTML = `<div class="empty">加载失败：${e.message}</div>`;
+  }
+}
+
+$('#recMonth').onclick = () => {
+  const opts = [];
+  const base = serverNow();
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
+    opts.push({v: monthStr(d), label: (d.getMonth() + 1) + ' 月'});
+  }
+  openPicker('选择月份', '只能查最近 6 个月', opts, recMonth, v => {
+    recMonth = v;
+    loadRecords();
+  });
+};
+
+/* ---------- 通用选择器 ---------- */
+let pickCb = null;
+
+function openPicker(title, hint, options, current, cb) {
+  $('#pickTitle').textContent = title;
+  $('#pickHint').textContent = hint || '';
+  $('#pickList').innerHTML = options.map(o =>
+    `<button data-v="${o.v}" class="${String(o.v) === String(current) ? 'on' : ''}">${o.label}</button>`).join('');
+  pickCb = cb;
+  $('#pickList').querySelectorAll('button').forEach(b => {
+    b.onclick = () => {
+      const v = b.dataset.v;
+      hostSheetHint();
+      hideSheet();
+      if (pickCb) pickCb(v);
+    };
+  });
+  showSheet('#pickSheet');
+}
+
+function hostSheetHint() {}
+
+/* ---------- 消费限制 ---------- */
+const TIME_OPTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 90, 120];
+const FARE_OPTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20];
+
+async function saveSettings(timeMin, fareYuan) {
+  try {
+    const j = await api('/api/settings', {method: 'POST', body: JSON.stringify({
+      time: timeMin, fare: fareYuan})});
+    toast(j.message || '已保存');
+    state.settings = {max_time_limit: timeMin, max_fare_limit: Math.round(fareYuan * 100)};
+    renderMe();
+    await loadAll();
+  } catch (e) { toast(e.message, true); }
+}
+
+$('#rowTime').onclick = () => {
+  if (!state.settings || !state.settings.max_time_limit) return toast('还没加载到当前设置', true);
+  openPicker('消费限时', '单次最长使用时长，从设备开阀后开始累计',
+    TIME_OPTS.map(v => ({v, label: v + ' 分'})),
+    state.settings.max_time_limit,
+    v => saveSettings(parseInt(v), (state.settings.max_fare_limit || 200) / 100));
+};
+
+$('#rowFare').onclick = () => {
+  if (!state.settings || !state.settings.max_fare_limit) return toast('还没加载到当前设置', true);
+  openPicker('消费限额', '单次最高消费金额，从设备开阀后开始累计',
+    FARE_OPTS.map(v => ({v, label: v + ' 元'})),
+    (state.settings.max_fare_limit / 100),
+    v => saveSettings(state.settings.max_time_limit || 30, parseFloat(v)));
+};
+
+/* ---------- 充值 ---------- */
+const AMOUNTS = [10, 20, 30, 50, 100, 200];
+let pickedAmt = 20;
+
+function renderAmounts() {
+  $('#amtGrid').innerHTML = AMOUNTS.map(v =>
+    `<button data-v="${v}" class="${v === pickedAmt ? 'on' : ''}">${v}</button>`).join('');
+  $('#amtGrid').querySelectorAll('button').forEach(b => {
+    b.onclick = () => {
+      pickedAmt = parseInt(b.dataset.v);
+      renderAmounts();
+    };
+  });
+}
+
+$('#btnPay').onclick = () => {
+  if (!pickedAmt) return toast('先选一个充值金额', true);
+  // 原版充值链路：完美校园 App 内选金额 → 微信小程序支付。
+  // 微信 App 支付的 appid 与包名/签名绑定，第三方客户端无法直接调起，
+  // 因此这里唤起原版充值页，支付流程与原版一致。
+  const url = `wanxiao://17wanxiao.com?page=chargeMoney&money=${pickedAmt}`;
+  location.href = url;
+  setTimeout(() => {
+    if (document.hidden) return;
+    toast('未唤起完美校园，请确认已安装原版 App');
+  }, 1400);
+};
+
+/* ---------- 弹层/导航 ---------- */
+function showSheet(sel) {
+  $('#mask').classList.add('on');
+  $(sel).classList.add('on');
+}
+function hideSheet() {
+  $('#mask').classList.remove('on');
+  document.querySelectorAll('.sheet').forEach(s => s.classList.remove('on'));
+}
+$('#mask').onclick = hideSheet;
+
+document.querySelectorAll('nav button').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+    const tab = b.dataset.tab;
+    $('#pageRec').classList.toggle('hidden', tab !== 'rec');
+    $('#pageMe').classList.toggle('hidden', tab !== 'me');
+    document.querySelector('main').children[0].classList.toggle('hidden', tab !== 'home');
+    $('#orderCard').classList.toggle('hidden', tab !== 'home' || !state.orders.length);
+    document.querySelector('.sec-title').style.display = tab === 'home' ? '' : 'none';
+    // 宿舍列表容器
+    const sec = $('#roomList');
+    sec.classList.toggle('hidden', tab !== 'home');
+    if (tab === 'rec') loadRecords();
+    if (tab === 'me') renderMe();
+  };
+});
+
+$('#btnRefresh').onclick = () => { toast('刷新中…'); loadAll(); };
+$('#btnRecharge').onclick = () => {
+  // 跳到「我的」页的充值区
+  const nav = document.querySelector('nav button[data-tab="me"]');
+  if (nav) nav.click();
+  setTimeout(() => {
+    const el = $('#amtGrid');
+    if (el) el.scrollIntoView({behavior: 'smooth', block: 'center'});
+  }, 120);
+};
+$('#btnReload').onclick = () => loadAll();
+
+loadAll();
+renderAmounts();
+// 3 分钟一次即可：太密会把这个账号的用水会话打挂（实测高频请求会触发保护）
+setInterval(() => { if (!document.hidden) loadAll(); }, 180000);
+</script>
+</body>
+</html>
