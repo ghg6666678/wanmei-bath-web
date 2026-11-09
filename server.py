@@ -225,6 +225,11 @@ class Handler(BaseHTTPRequestHandler):
         if p == '/api/config':
             return self._json({'ok': True, 'config': _public_config()})
 
+        if p == '/api/version':
+            # 检查更新：服务端代查 GitHub，多通道 + 本地清单 + 缓存兜底
+            import updater
+            return self._json(updater.get_version_info(force=q.get('force') == '1'))
+
         if p == '/api/time':
             s = get_session()
             now = vwater.server_now(s)

@@ -250,6 +250,34 @@ input[type=tel]::placeholder{color:var(--ink3)}
 #pullHint .spin{width:14px;height:14px;border:2px solid rgba(37,99,235,.2);
   border-top-color:var(--brand);display:none}
 #pullHint.busy .spin{display:inline-block}
+
+/* ---------- 检查更新 ---------- */
+.updrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;
+  font-size:13.5px;border-bottom:1px solid var(--line)}
+.updrow .r{color:var(--ink2);font-size:12.5px;font-weight:600;text-align:right}
+.updstate{display:flex;gap:11px;align-items:flex-start;margin:14px 0 0;padding:14px 15px;border-radius:15px;
+  background:rgba(37,99,235,.09);border:1.5px solid rgba(37,99,235,.32);color:var(--brand)}
+.updstate .t{font-size:15.5px;font-weight:800;line-height:1.45}
+.updstate .d{font-size:12.5px;font-weight:600;line-height:1.6;margin-top:4px;opacity:.92}
+.updstate.ok{background:rgba(18,183,106,.11);border-color:rgba(18,183,106,.38);color:var(--ok)}
+.updstate.bad{background:rgba(247,144,9,.13);border-color:rgba(247,144,9,.45);color:#b54708}
+.updstate .spin{width:16px;height:16px;border-width:2px;border-color:rgba(37,99,235,.25);
+  border-top-color:var(--brand);flex:none;margin-top:2px}
+.updnotes{font-size:12.5px;line-height:1.75;color:var(--ink2);white-space:pre-line;margin-top:12px;
+  padding:12px 13px;border-radius:12px;background:rgba(16,24,40,.04)}
+.updalt{margin-top:14px;font-size:12px;color:var(--ink3);line-height:2}
+.updalt .lb{color:var(--ink2);font-weight:700;margin-top:8px}
+.updalt a{display:block;margin-top:1px}
+.updalt code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--ink2);
+  background:rgba(16,24,40,.05);padding:2px 5px;border-radius:5px;word-break:break-all}
+.updlink{cursor:pointer;text-decoration:none;color:var(--brand)}
+@media (prefers-color-scheme:dark){
+  .updstate.ok{background:rgba(18,183,106,.15);border-color:rgba(18,183,106,.45);color:#5fd6a4}
+  .updstate.bad{background:rgba(247,144,9,.16);border-color:rgba(253,176,34,.5);color:#fdb022}
+  .updstate .spin{border-color:rgba(79,141,255,.3);border-top-color:var(--brand)}
+  .updnotes{background:rgba(255,255,255,.05)}
+  .updalt code{background:rgba(255,255,255,.07)}
+}
 </style>
 </head>
 <body>
@@ -335,6 +363,24 @@ input[type=tel]::placeholder{color:var(--ink3)}
         登录态失效时会自动弹出登录框，用手机号重新验证即可。
       </div>
       <button class="btn ghost" style="width:100%" id="btnLogout">退出登录</button>
+    </section>
+
+    <div class="sec-title"><h3>应用</h3></div>
+    <section class="card">
+      <div class="setrow" id="rowUpdate">
+        <div class="grow">
+          <div class="name">检查更新</div>
+          <div class="info" id="updRowInfo">当前版本 1.0.3</div>
+        </div>
+        <div class="val"><span id="valVersion">1.0.3</span><i>›</i></div>
+      </div>
+      <div class="setrow" id="rowRepo">
+        <div class="grow">
+          <div class="name">项目主页</div>
+          <div class="info">源码、全部版本与问题反馈</div>
+        </div>
+        <div class="val"><i>›</i></div>
+      </div>
     </section>
   </div>
 </main>
@@ -450,6 +496,27 @@ input[type=tel]::placeholder{color:var(--ink3)}
   </div>
 </div>
 
+<!-- 检查更新 -->
+<div class="sheet" id="updSheet">
+  <div class="bar-h"></div>
+  <h3>检查更新</h3>
+  <div class="updrow"><span>当前版本</span><span class="r" id="updCur">—</span></div>
+  <div class="updstate" id="updState">
+    <span class="spin"></span>
+    <div>
+      <div class="t">正在检测…</div>
+      <div class="d">依次尝试 GitHub 官方接口、代理镜像与 CDN 清单</div>
+    </div>
+  </div>
+  <div class="hint" id="updTip" style="margin:12px 0 0"></div>
+  <div class="updnotes" id="updNotes" style="display:none"></div>
+  <div id="updBtns" style="display:flex;gap:9px;margin-top:14px"></div>
+  <div class="updalt" id="updAlt"></div>
+  <div style="display:flex;gap:9px;margin-top:12px">
+    <button class="btn ghost" style="flex:1" id="updClose">关闭</button>
+    <button class="btn" style="flex:1.4" id="updRetry">重新检测</button>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -763,6 +830,11 @@ function renderMe() {
   $('#valTime').textContent = st.max_time_limit ? st.max_time_limit + ' 分钟' : '—';
   const fareFen = Number(st.max_fare_limit || 0);
   $('#valFare').textContent = fareFen ? (fareFen >= 500000 ? '不限' : (fareFen / 100) + ' 元') : '—';
+  const ver = state.appVersion || APP_VERSION;
+  $('#valVersion').textContent = ver;
+  const upd = state.update && state.update.latest;
+  $('#updRowInfo').textContent = '当前版本 ' + ver +
+    (upd && upd.version && verCmp(upd.version, ver) > 0 ? ' · 有新版本 ' + upd.version : '');
 }
 
 async function loadAll() {
@@ -1393,6 +1465,259 @@ $('#btnLogout').onclick = () => {
     });
 };
 
+
+/* ---------- 检查更新 ----------
+ * GitHub 在部分网络下打不开，所以这里按「官方接口 → 代理镜像 → CDN 清单 → 内置清单/缓存」逐级降级，
+ * 任何一步失败都不会把用户卡在空白弹窗上：最差也能给出已知版本和手动下载地址。 */
+const APP_VERSION = '1.0.3';        /* 网页端版本；安卓端以安装包里的真实版本为准 */
+const REPO_HOME = 'https://github.com/ghg6666678/wanmei-bath-android';
+
+/* 版本号比较：1.0.10 > 1.0.9；带后缀的（1.0.3-dev）比正式版旧。与原生 Update.verCmp 规则一致 */
+function verCmp(a, b) {
+  const nums = s => {
+    const parts = String(s == null ? '' : s).trim().replace(/^v/, '').split(/[.\-]/);
+    const out = [];
+    for (const p of parts) {
+      const m = p.match(/^\d+/);
+      if (!m) break;
+      out.push(parseInt(m[0], 10));
+    }
+    return out;
+  };
+  const suf = s => {
+    const t = String(s == null ? '' : s).trim().replace(/^v/, '');
+    return /[^\d.]/.test(t) || /\.$/.test(t);
+  };
+  const pa = nums(a), pb = nums(b);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = i < pa.length ? pa[i] : 0, y = i < pb.length ? pb[i] : 0;
+    if (x !== y) return x > y ? 1 : -1;
+  }
+  const sa = suf(a), sb = suf(b);
+  return sa === sb ? 0 : (sa ? -1 : 1);
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+}
+
+function fmtDay(iso) {
+  if (!iso) return '';
+  const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[1] + '-' + m[2] + '-' + m[3] : String(iso).slice(0, 10);
+}
+
+function hostOf(u) {
+  try { return new URL(u).host; } catch (e) { return '镜像'; }
+}
+
+/* 用系统浏览器打开（安卓走原生 Intent，网页走新窗口），不占用 App 自己的 WebView */
+function openExternal(url) {
+  if (!url) return;
+  const nat = __native();
+  if (nat && nat.openExternal) { nat.openExternal(url); return; }
+  try { window.open(url, '_blank', 'noopener'); } catch (e) { location.href = url; }
+}
+
+function copyText(t) {
+  const nat = __native();
+  if (nat && nat.copyText) { nat.copyText(t); toast('已复制'); return; }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t).then(() => toast('已复制'), () => toast('复制失败', true));
+  } else toast('复制失败，请长按选择', true);
+}
+
+/* 取版本信息：安卓走原生（原生内部已做多通道 + 内置清单兜底）；网页先问服务端，再退到本地清单 */
+async function fetchUpdateInfo() {
+  const nat = __native();
+  if (nat && typeof nat.checkUpdateAsync === 'function') return await nativeCall('checkUpdateAsync');
+  try {
+    const r = await fetch('/api/version?t=' + Date.now());
+    const j = await r.json();
+    if (j && j.latest && j.latest.version) return j;
+    throw new Error((j && j.error) || '服务端没有返回版本信息');
+  } catch (e) {
+    try {
+      const r = await fetch('/latest.json?t=' + Date.now());
+      const j = await r.json();
+      if (j && j.version) {
+        return {ok: true, current: {version: APP_VERSION, versionCode: 0}, latest: j,
+                source: '本地清单', stale: true,
+                error: '未能连接服务端', tried: []};
+      }
+    } catch (e2) { }
+    throw e;
+  }
+}
+
+let updBusy = false;
+
+async function runUpdateCheck() {
+  if (updBusy) return;
+  updBusy = true;
+  const st = $('#updState');
+  st.className = 'updstate';
+  st.innerHTML = '<span class="spin"></span><div><div class="t">正在检测…</div>' +
+    '<div class="d">依次尝试 GitHub 官方接口、代理镜像与 CDN 清单</div></div>';
+  $('#updNotes').style.display = 'none';
+  $('#updNotes').textContent = '';
+  $('#updBtns').innerHTML = '';
+  $('#updAlt').innerHTML = '';
+  $('#updTip').textContent = '';
+  $('#updCur').textContent = state.appVersion || APP_VERSION;
+  try {
+    const res = await fetchUpdateInfo();
+    state.update = res;
+    renderUpdate(res);
+    renderMe();
+  } catch (e) {
+    renderUpdate({ok: false, error: String((e && e.message) || e), tried: []});
+  }
+  updBusy = false;
+}
+
+function mkBtn(label, primary, fn) {
+  const b = document.createElement('button');
+  b.className = 'btn' + (primary ? '' : ' ghost');
+  b.style.flex = '1';
+  b.textContent = label;
+  b.onclick = fn;
+  return b;
+}
+
+function mkLink(label, url) {
+  const a = document.createElement('a');
+  a.href = '#';
+  a.className = 'updlink';
+  a.textContent = label;
+  a.dataset.url = url || '';
+  a.onclick = e => { e.preventDefault(); openExternal(a.dataset.url); };
+  return a;
+}
+
+function downloadApk(latest) {
+  const nat = __native();
+  const name = latest.apkName || ('zhishui-' + latest.version + '.apk');
+  if (nat && nat.downloadApk) {
+    nativeCall('downloadApk', latest.apkUrl, name)
+      .then(j => toast(j.message || '已加入下载队列'))
+      .catch(e => toast(e.message || '下载失败，换个下载源试试', true));
+    return;
+  }
+  openExternal(latest.apkUrl);
+}
+
+function renderUpdate(res) {
+  const cur = (res.current && res.current.version) || state.appVersion || APP_VERSION;
+  const curCode = res.current && res.current.versionCode;
+  const latest = res.latest || {};
+  const st = $('#updState'), notes = $('#updNotes'), btns = $('#updBtns'),
+        alt = $('#updAlt'), tip = $('#updTip');
+  $('#updCur').textContent = cur + (curCode ? '（构建号 ' + curCode + '）' : '');
+
+  const cmp = latest.version ? verCmp(latest.version, cur) : 0;
+  const hasNew = cmp > 0;
+  const stale = !!res.stale;
+  const isApp = !!__native();      /* 安卓端要跟安装包版本比；网页端刷新页面就是最新 */
+
+  if (!res.ok) {
+    st.className = 'updstate bad';
+    st.innerHTML = '<div><div class="t">检测失败</div><div class="d">' +
+      esc(res.error || '连不上 GitHub，也没有可用的本地记录') + '</div></div>';
+    tip.textContent = 'GitHub 在部分网络下打不开，检测失败不影响正常使用。可以稍后重试，或用下面的地址手动下载。';
+  } else if (stale) {
+    st.className = 'updstate bad';
+    st.innerHTML = '<div><div class="t">没能连上 GitHub</div><div class="d">' +
+      esc(res.error || '检测未成功') + '，下面的版本信息来自「' + esc(res.source || '本地记录') + '」' +
+      (hasNew ? '<div class="d" style="margin-top:5px">发现新版本 ' + esc(latest.version) + '</div>' : '') +
+      '</div></div>';
+    tip.textContent = '已知的最新版本照样能下载；下载完成后回到这里点「重新检测」即可。';
+  } else if (!isApp) {
+    /* 网页端：没有安装与版本比较这回事，刷新页面即可；顺带给出 Android 客户端的最新版 */
+    st.className = 'updstate ok';
+    st.innerHTML = '<div><div class="t">网页端无需安装</div><div class="d">当前 ' + esc(cur) +
+      ' · 刷新页面即为最新</div></div>';
+    tip.textContent = latest.version
+      ? '下面给出的是 Android 客户端的最新版本 v' + esc(latest.version) + '，需要装 App 时可以下载。'
+      : '';
+  } else if (hasNew) {
+    st.className = 'updstate';
+    st.innerHTML = '<div><div class="t">发现新版本 ' + esc(latest.version) + '</div><div class="d">当前 ' +
+      esc(cur) + ' → 最新 ' + esc(latest.version) +
+      (latest.publishedAt ? ' · 发布于 ' + esc(fmtDay(latest.publishedAt)) : '') +
+      ' · 来源：' + esc(res.source || '') + '</div></div>';
+    tip.textContent = '与旧版同一签名证书，可直接覆盖安装，登录态不会丢。';
+  } else {
+    st.className = 'updstate ok';
+    st.innerHTML = '<div><div class="t">已是最新版本</div><div class="d">当前 ' + esc(cur) +
+      (cmp < 0 ? '，线上最新是 ' + esc(latest.version) + '（当前是开发版）' : '') +
+      ' · 来源：' + esc(res.source || '') + '</div></div>';
+    tip.textContent = '';
+  }
+
+  if (latest.notes) { notes.textContent = latest.notes; notes.style.display = ''; }
+
+  btns.innerHTML = '';
+  if (!isApp) {
+    btns.appendChild(mkBtn('刷新页面', true, () => location.reload()));
+    if (latest.apkUrl) btns.appendChild(mkBtn('下载 Android 版', false, () => downloadApk(latest)));
+  } else if (hasNew && latest.apkUrl) {
+    btns.appendChild(mkBtn('下载新版 APK', true, () => downloadApk(latest)));
+    btns.appendChild(mkBtn('用浏览器打开', false, () => openExternal(latest.releaseUrl || REPO_HOME)));
+  } else {
+    btns.appendChild(mkBtn('重新检测', false, () => runUpdateCheck()));
+  }
+
+  alt.innerHTML = '';
+  if (latest.apkUrl || latest.releaseUrl) {
+    const lb = document.createElement('div');
+    lb.className = 'lb';
+    lb.textContent = '下载地址';
+    alt.appendChild(lb);
+    if (latest.apkUrl) alt.appendChild(mkLink('GitHub 直链 · github.com', latest.apkUrl));
+    (latest.mirrors || []).forEach((m, i) => alt.appendChild(mkLink('镜像 ' + (i + 1) + ' · ' + hostOf(m), m)));
+    alt.appendChild(mkLink('项目主页 · 全部版本与反馈', latest.releaseUrl || REPO_HOME));
+    if (latest.sha256) {
+      const lb2 = document.createElement('div');
+      lb2.className = 'lb';
+      lb2.textContent = 'SHA-256';
+      alt.appendChild(lb2);
+      const c = document.createElement('code');
+      c.textContent = latest.sha256;
+      alt.appendChild(c);
+      const cp = document.createElement('span');
+      cp.className = 'updlink';
+      cp.style.marginLeft = '6px';
+      cp.textContent = '复制';
+      cp.onclick = () => copyText(latest.sha256);
+      alt.appendChild(cp);
+    }
+  }
+  if (res.tried && res.tried.length) {
+    const t = document.createElement('div');
+    t.className = 'lb';
+    t.textContent = '已尝试的通道';
+    alt.appendChild(t);
+    alt.appendChild(document.createTextNode(res.tried.join(' · ')));
+  }
+}
+
+$('#rowUpdate').onclick = () => { showSheet('#updSheet'); runUpdateCheck(); };
+$('#rowRepo').onclick = () => openExternal(REPO_HOME);
+$('#updClose').onclick = () => hideSheet();
+$('#updRetry').onclick = () => runUpdateCheck();
+
+/* 安卓端取安装包里的真实版本号 */
+(function () {
+  const nat = __native();
+  if (nat && nat.appVersion) {
+    try {
+      const v = JSON.parse(nat.appVersion());
+      if (v && v.version) state.appVersion = v.version;
+    } catch (e) { }
+  }
+})();
 /* Android 返回键：先关弹层，再回首页，最后退出 */
 window.__onBack = function () {
   if (document.querySelector('.sheet.on')) { hideSheet(); return true; }

@@ -11,3 +11,6 @@ venv/
 
 # 运行产物
 *.log
+
+# 版本检查缓存（运行时生成）
+version_cache.json

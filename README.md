@@ -31,11 +31,13 @@ Windows 上也可以直接双击 `启动.bat`（会调用 `server.py`）。
 ## 目录结构
 
 ```
-server.py       零依赖 HTTP 服务（静态页 + JSON 接口 + 网页登录/退出）
+server.py       零依赖 HTTP 服务（静态页 + JSON 接口 + 网页登录/退出 + 版本检查）
 vwater.py       智慧用水协议（AES-ECB 签名、entrance、预约、记录、限时限额）
 wxlogin.py      完美校园登录协议（RSA 换密钥 + 3DES + campusSign）
+updater.py      检查更新：多通道探测 GitHub，本地清单 / 缓存兜底
 login.py        登录命令行：拿 session 并写入 config.json
 web/index.html  单页界面
+web/latest.json 版本清单（GitHub 读不到时的兜底，发版时更新）
 config.json     登录后生成，含票据和个人信息（已在 .gitignore 中）
 ```
 
@@ -62,6 +64,7 @@ encrypt:   AES-ECB-PKCS7(uuid + "-" + timestamp, 16 字节固定密钥) 的 base
 - 消费限时、限额：滑块 + 文本框联动，金额以 **0.05 元**为步进（与浴室实际扣费单位一致），服务端按「分」做整数校验
 - **保存限额后自动取消所有已有预约**：订单里存的是预约当时的数值，不重新预约不生效
 - 顶部下拉刷新；所有弹窗按住顶部横条下拉可跟手关闭
+- **检查更新**：服务端代查 GitHub（官方接口 → 代理镜像 → CDN 清单 → 本地清单 → 缓存），GitHub 打不开时仍给出 Android 客户端的最新版本、下载地址与 SHA-256；网页端本身刷新即最新
 - 首页「充值」按钮弹出说明弹层；退出登录有二次确认；登录失效先提示再自动弹登录框
 - 最近 6 个月的用水记录
 - 深色模式自适应、可「添加到主屏幕」（PWA）
