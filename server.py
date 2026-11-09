@@ -23,6 +23,35 @@ _lock = threading.Lock()
 _session = None
 _config = {}
 
+# 网页登录：sendCode 与 doLogin 必须复用同一个 WxLogin 实例（session 要一致）
+_wx_lock = threading.Lock()
+_wx = None
+
+
+def _wx_new():
+    import wxlogin
+    w = wxlogin.WxLogin(host=wxlogin.HOSTS[0])
+    w.exchange_secret()
+    return w
+
+
+def _login_config(w, user, phone):
+    def pick(*keys):
+        for k in keys:
+            v = user.get(k)
+            if v not in (None, ''):
+                return str(v)
+        return ''
+    return {
+        'token': w.session_id,
+        'customerCode': w.customer_id or pick('customId'),
+        'customerid': w.ecard_customer_id or pick('ecardCustomerid'),
+        'outid': pick('authStuNo', 'userName', 'account'),
+        'name': pick('name', 'userName'),
+        'school': pick('customName_', 'schoolName', 'customerName'),
+        'mobile': phone,
+    }
+
 
 def load_config():
     global _config
@@ -50,7 +79,7 @@ def get_session(force=False):
     with _lock:
         missing = [k for k in ('token', 'customerCode', 'customerid', 'outid') if not _config.get(k)]
         if missing:
-            raise NotLoggedIn('还没有登录，请先在命令行运行：python login.py')
+            raise NotLoggedIn('还没有登录，请用手机号登录')
         if _session is None or force:
             _session = vwater.Session(_config)
             _session.entrance()
@@ -77,6 +106,64 @@ class Handler(BaseHTTPRequestHandler):
 
     def _json(self, obj, code=200):
         self._send(code, obj)
+
+    # ---------- 网页端登录/退出：nativeCall 的浏览器回落 ----------
+    def _native(self, body):
+        global _wx, _session
+        name = str(body.get('name') or '').strip()
+        args = body.get('args') or []
+
+        if name == 'logout':
+            with _lock:
+                cfg = dict(_config)
+                for k in ('token', 'customerCode', 'customerid', 'outid',
+                          'name', 'school', 'mobile', 'phone'):
+                    cfg.pop(k, None)
+                save_config(cfg)
+                _session = None
+            with _wx_lock:
+                _wx = None
+            return {'ok': True, 'data': {}}
+
+        if name == 'sendCode':
+            phone = str(args[0]) if args else ''
+            if len(phone) != 11 or not phone.isdigit():
+                return {'ok': False, 'error': '手机号格式不对'}
+            try:
+                with _wx_lock:
+                    if _wx is None:
+                        _wx = _wx_new()
+                    r = _wx.send_code(phone)
+                if str(r.get('code_')) != '0':
+                    return {'ok': False, 'error': r.get('message_') or '验证码发送失败'}
+                return {'ok': True, 'data': {}}
+            except Exception as e:
+                with _wx_lock:
+                    _wx = None
+                return {'ok': False, 'error': '发送失败: %s' % e}
+
+        if name == 'doLogin':
+            phone = str(args[0]) if args else ''
+            code = str(args[1]) if len(args) > 1 else ''
+            if not phone or not code:
+                return {'ok': False, 'error': '缺少手机号或验证码'}
+            try:
+                with _wx_lock:
+                    if _wx is None:
+                        _wx = _wx_new()
+                    user = _wx.login_sms(phone, code)
+                    cfg = dict(_config)
+                    cfg.update(_login_config(_wx, user, phone))
+                    save_config(cfg)
+                try:
+                    get_session(force=True)
+                except Exception:
+                    pass          # 票据已写入，下次请求会重建会话
+                return {'ok': True, 'data': {}}
+            except Exception as e:
+                return {'ok': False, 'error': '登录失败: %s' % e}
+
+        return {'ok': False, 'error': '不支持的调用: %s' % name}
 
     def _body(self):
         n = int(self.headers.get('Content-Length') or 0)
@@ -180,6 +267,9 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({'ok': False, 'error': 'unknown api'}, 404)
 
     def api_post(self, p, body):
+        if p == '/api/native':
+            return self._json(self._native(body))
+
         if p == '/api/config':
             cfg = dict(_config)
             cfg.update({k: v for k, v in body.items() if v})
@@ -255,13 +345,18 @@ class Handler(BaseHTTPRequestHandler):
             tmin = body.get('time')
             if fare is None or tmin is None:
                 return self._json({'ok': False, 'error': '缺少参数'}, 400)
-            fare = float(fare)
-            tmin = int(tmin)
+            try:
+                fen = int(round(float(fare) * 100))   # 统一用「分」做整数判断
+                tmin = int(tmin)
+            except (TypeError, ValueError):
+                return self._json({'ok': False, 'error': '参数格式不对'}, 200)
             if not (1 <= tmin <= 120):
                 return self._json({'ok': False, 'error': '限时需在 1–120 分钟'}, 200)
-            if not (1 <= fare <= 20):
-                return self._json({'ok': False, 'error': '限额需在 1–20 元'}, 200)
-            ok, msg = vwater.save_limit(s, fare, tmin)
+            if fen < 100 or (fen > 2000 and fen != 500000):
+                return self._json({'ok': False, 'error': '限额需在 1.00–20.00 元，或选择「不限」'}, 200)
+            if fen != 500000 and fen % 5 != 0:
+                return self._json({'ok': False, 'error': '金额需为 0.05 元的整数倍（如 2.35）'}, 200)
+            ok, msg = vwater.save_limit(s, fen / 100.0, tmin)
             return self._json({'ok': ok, 'message': msg or ('已保存' if ok else '保存失败')})
 
         return self._json({'ok': False, 'error': 'unknown api'}, 404)
@@ -281,6 +376,8 @@ def _server_dt(hhmmss):
 
 def _public_config():    return {
         'name': _config.get('name'),
+        'phone': _config.get('mobile') or _config.get('phone'),
+        'mobile': _config.get('mobile') or _config.get('phone'),
         'outid': _config.get('outid'),
         'school': _config.get('school'),
         'customerCode': _config.get('customerCode'),
@@ -304,14 +401,14 @@ def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8770
     load_config()
     if not _config.get('token'):
-        print('!! 未配置 token，请先运行: python fetch_token.py')
+        print('!! 未配置 token，请运行 python login.py，或在网页里用手机号登录')
     else:
         try:
             get_session()
             print('✔ 登录态有效：%s · %s' % (_config.get('name'), _config.get('school')))
         except Exception as e:
             print('!! 登录态无效：%s' % e)
-            print('   请在手机上打开「完美校园 → 智慧用水 → 洗澡」，再运行 python refresh.py')
+            print('   可运行 python login.py 重新登录，或在网页里用手机号登录')
     srv = ThreadingHTTPServer(('0.0.0.0', port), Handler)
     ip = _lan_ip()
     print('')
