@@ -49,10 +49,10 @@ config.json     登录后生成，含票据和个人信息（已在 .gitignore �
 ```
 uuid:      entrance 换来的会话 uuid
 timestamp: 毫秒时间戳
-encrypt:   AES-ECB-PKCS7(uuid + "-" + timestamp, key="wanmeixiaoyuan11") 的 base64
+encrypt:   AES-ECB-PKCS7(uuid + "-" + timestamp, 16 字节固定密钥) 的 base64
 ```
 
-签名密钥取自 H5 前端 JS，属于协议层还原，不涉及破解任何账号。
+签名密钥是官方 H5 前端 JS 里的一行 **16 字节明文常量**（标准 AES-128，见 `vwater.py` 的 `SIGN_KEY`），属于协议层还原，不涉及破解任何账号。Java 侧 `AES/ECB/PKCS5Padding` 与前端 PKCS7 填充等价。
 
 ## 功能
 
@@ -88,7 +88,7 @@ encrypt:   AES-ECB-PKCS7(uuid + "-" + timestamp, key="wanmeixiaoyuan11") 的 bas
 
 ## 适用范围与其他学校
 
-网页端与 [安卓版](https://github.com/ghg6666678/wanmei-bath-android) 同源，目前只在**一所**使用「完美校园 智慧用水」的学校实测。公共域名、签名密钥以及运行时下发的 `customerCode` / `customerid` / `outid` 是通用的，但以下三项来自本校实际配置，换学校可能需要调整：浴室命名格式（楼栋排序与星标 A/B 区合并）、**0.05 元扣费步进 / 1–20 元 / 1–120 分钟档位**、以及 `limittype` / `verificationtype` 等固定业务参数。
+网页端与 [安卓版](https://github.com/ghg6666678/wanmei-bath-android) 同源，目前只在**一所**使用「完美校园 智慧用水」的学校实测。公共域名、16 字节的标准 AES-128 签名密钥以及运行时下发的 `customerCode` / `customerid` / `outid` 是通用的，但以下三项来自本校实际配置，换学校可能需要调整：浴室命名格式（楼栋排序与星标 A/B 区合并）、**0.05 元扣费步进 / 1–20 元 / 1–120 分钟档位**、以及 `limittype` / `verificationtype` 等固定业务参数。
 
 跨校试用反馈请到 [安卓仓库的跨校适配反馈模板](https://github.com/ghg6666678/wanmei-bath-android/issues/new/choose) 提交；公开 issue 中请勿粘贴个人信息、验证码或 token。
 

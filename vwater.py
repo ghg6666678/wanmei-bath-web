@@ -2,8 +2,9 @@
 
 来源：逆向 xqh5.17wanxiao.com/water3to1 前端 JS（app.89ec9fbfe4bf5925b116.js）
 接口：POST https://vwater.59wanmei.com/usewater/api/use/water/h5/WXInvokFront/
-签名：AES-ECB-Pkcs7(message = uuid + "-" + timestamp_ms, key = "wanmeixiaoyuan11")
-     放在请求头 encrypt，配合 timestamp(ms) / uuid
+签名：AES-ECB-PKCS7(message = uuid + "-" + timestamp_ms, 16 字节固定密钥 / 标准 AES-128)
+     密钥是官方前端 JS 里的明文常量；输出 base64 放在请求头 encrypt，配合 timestamp / uuid
+     Java 的 AES/ECB/PKCS5Padding 与前端 PKCS7 填充等价
 """
 import base64
 import json
@@ -21,7 +22,7 @@ BASE = 'https://vwater.59wanmei.com/usewater'
 UA = ('Mozilla/5.0 (Linux; Android 16; PJE110) AppleWebKit/537.36 (KHTML, like Gecko) '
       'Chrome/138.0.7204.179 Mobile Safari/537.36 wanxiao/5.8.36')
 H5_ORIGIN = 'https://xqh5.17wanxiao.com'
-SIGN_KEY = b'wanmeixiaoyuan11'   # 16 字节，取自 H5 前端
+SIGN_KEY = b'wanmeixiaoyuan11'   # 16 字节标准 AES-128，官方 H5 前端 JS 明文常量
 
 
 class VWaterError(Exception):
@@ -68,7 +69,7 @@ class Session:
             raise VWaterError(f'网络异常: {e}')
 
     def _sign(self, uuid, ts):
-        """AES-ECB-PKCS7(uuid + '-' + ts)，key 固定，输出 base64。"""
+        """AES-ECB-PKCS7(uuid + '-' + ts)，16 字节固定密钥（标准 AES-128），输出 base64。"""
         msg = f'{uuid}-{ts}'.encode('utf-8')
         ct = AES.new(SIGN_KEY, AES.MODE_ECB).encrypt(pad(msg, 16))
         return base64.b64encode(ct).decode('ascii')
