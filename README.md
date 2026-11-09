@@ -84,6 +84,12 @@ encrypt:   AES-ECB-PKCS7(uuid + "-" + timestamp, key="wanmeixiaoyuan11") 的 bas
 
 若本仓库中存在源自上述项目的代码片段，其版权归原作者所有，按 MIT 许可使用。
 
+## 适用范围与其他学校
+
+网页端与 [安卓版](https://github.com/ghg6666678/wanmei-bath-android) 同源，目前只在**一所**使用「完美校园 智慧用水」的学校实测。公共域名、签名密钥以及运行时下发的 `customerCode` / `customerid` / `outid` 是通用的，但以下三项来自本校实际配置，换学校可能需要调整：浴室命名格式（楼栋排序与星标 A/B 区合并）、**0.05 元扣费步进 / 1–20 元 / 1–120 分钟档位**、以及 `limittype` / `verificationtype` 等固定业务参数。
+
+跨校试用反馈请到 [安卓仓库的跨校适配反馈模板](https://github.com/ghg6666678/wanmei-bath-android/issues/new/choose) 提交；公开 issue 中请勿粘贴个人信息、验证码或 token。
+
 ## 免责声明
 
 仅供个人学习与自用。请使用**自己的账号**，不要用于批量操作或影响他人。因使用本工具产生的一切后果由使用者自行承担。
