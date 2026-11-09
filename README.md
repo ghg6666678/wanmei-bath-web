@@ -95,6 +95,10 @@ encrypt:   AES-ECB-PKCS7(uuid + "-" + timestamp, 16 字节固定密钥) 的 base
 
 跨校试用反馈请到 [安卓仓库的跨校适配反馈模板](https://github.com/ghg6666678/wanmei-bath-android/issues/new/choose) 提交；公开 issue 中请勿粘贴个人信息、验证码或 token。
 
+## 接口文档
+
+本项目与官方服务器交互的全部接口（登录、智慧用水业务命令），以及 `server.py` 暴露给网页前端的 HTTP 接口，见安卓仓库的 [docs/API.md](https://github.com/ghg6666678/wanmei-bath-android/blob/main/docs/API.md)。协议细节两端共用同一份，不再各写一遍。
+
 ## 开发复盘
 
 完整开发流程见 [安卓仓库的公开版复盘](https://github.com/ghg6666678/wanmei-bath-android/blob/main/docs/DEVELOPMENT.md)（已脱敏）。
