@@ -83,7 +83,6 @@ main{padding:4px 16px 8px;display:flex;flex-direction:column;gap:14px}
   letter-spacing:6px;font-variant-numeric:tabular-nums;color:var(--brand);white-space:nowrap}
 #orderCard .code .countdown{margin-left:0;font-size:12.5px;color:var(--ink2);
   text-align:center;white-space:nowrap}
-#bookSheet .code{flex-direction:column;align-items:center;gap:6px;text-align:center}
 
 /* 列表 */
 .sec-title{display:flex;align-items:center;justify-content:space-between;margin:2px 4px -4px}
@@ -344,12 +343,8 @@ input[type=tel]::placeholder{color:var(--ink3)}
   <div class="bar-h"></div>
   <h3 id="bkTitle">预约浴室</h3>
   <div class="hint" id="bkHint"></div>
-  <div class="code" style="margin:0 0 14px">
-    <span class="k">验证码</span>
-    <span class="v" style="font-size:20px;letter-spacing:1px">提交后生成</span>
-  </div>
   <div class="warnbox" id="bkWarn" style="display:none"></div>
-  <button class="btn" style="width:100%;padding:15px" id="bkSubmit">立即取码</button>
+  <button class="btn" style="width:100%;padding:15px" id="bkSubmit">立即预约</button>
 </div>
 
 <!-- 登录弹层 -->
@@ -843,7 +838,7 @@ $('#bkSubmit').onclick = async () => {
   } catch (e) {
     toast(e.message, true);
   } finally {
-    btn.disabled = false; btn.textContent = '立即取码';
+    btn.disabled = false; btn.textContent = '立即预约';
   }
 };
 
