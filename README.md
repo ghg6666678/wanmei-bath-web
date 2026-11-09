@@ -90,6 +90,10 @@ encrypt:   AES-ECB-PKCS7(uuid + "-" + timestamp, key="wanmeixiaoyuan11") 的 bas
 
 跨校试用反馈请到 [安卓仓库的跨校适配反馈模板](https://github.com/ghg6666678/wanmei-bath-android/issues/new/choose) 提交；公开 issue 中请勿粘贴个人信息、验证码或 token。
 
+## 开发复盘
+
+完整开发流程见 [安卓仓库的公开版复盘](https://github.com/ghg6666678/wanmei-bath-android/blob/main/docs/DEVELOPMENT.md)（已脱敏）。
+
 ## 免责声明
 
 仅供个人学习与自用。请使用**自己的账号**，不要用于批量操作或影响他人。因使用本工具产生的一切后果由使用者自行承担。
