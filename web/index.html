@@ -166,6 +166,8 @@ input:focus{border-color:var(--brand)}
 /* 数值列等宽右对齐，保证各行的数值与箭头右边缘对齐 */
 .setrow .val span{min-width:68px;text-align:right;display:inline-block;font-variant-numeric:tabular-nums}
 .setrow .val i{font-style:normal;color:var(--ink3);font-size:19px;line-height:1;margin-top:-2px}
+/* 左侧占满剩余空间，数值列才会真正贴到行右端；此前只在 68px 内右对齐，横屏下会露馅 */
+.setrow .grow{flex:1;min-width:0}
 .tipnote{font-size:12px;color:var(--ink3);line-height:1.7;padding:0 4px;margin-top:8px}
 
 /* 金额网格 */
