@@ -134,6 +134,8 @@ nav svg{width:22px;height:22px}
 /* 横条本身只有 4px，用伪元素把顶部一整条做成可拖动热区 */
 .sheet .bar-h::before{content:'';position:absolute;left:-50vw;right:-50vw;top:-14px;bottom:-18px}
 .sheet h3{margin:0 0 4px;font-size:17px}
+.bkfree{font-size:13px;font-weight:500;color:var(--ok);margin-left:8px;
+  white-space:nowrap;font-variant-numeric:tabular-nums}
 .sheet .hint{font-size:12.5px;color:var(--ink2);margin-bottom:14px;line-height:1.55}
 .field{margin-bottom:14px}
 .field label{display:block;font-size:12.5px;color:var(--ink2);margin-bottom:7px;font-weight:600}
@@ -341,7 +343,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
 <div class="sheet-mask" id="mask"></div>
 <div class="sheet" id="bookSheet">
   <div class="bar-h"></div>
-  <h3 id="bkTitle">预约浴室</h3>
+  <h3><span id="bkTitle">预约浴室</span><span class="bkfree" id="bkFree"></span></h3>
   <div class="hint" id="bkHint"></div>
   <div class="warnbox" id="bkWarn" style="display:none"></div>
   <button class="btn" style="width:100%;padding:15px" id="bkSubmit">立即预约</button>
@@ -804,7 +806,8 @@ function openBook(code) {
   state.pickedRoom = room;
   const free = room.freetermnums ?? 0, total = room.sumtermnums ?? 0;
   $('#bkTitle').textContent = '预约 · ' + (room.bathroomname || '');
-  $('#bkHint').textContent = `当前空闲 ${free} / ${total} 台。提交后立刻生成验证码，今日内到设备输入即可开阀。`;
+  $('#bkFree').textContent = `空闲 ${free} / ${total}`;
+  $('#bkHint').textContent = '提交后立刻生成验证码，今日内到设备输入即可开阀。';
 
   const st = state.settings || {};
   const fare = ((st.max_fare_limit || room.max_fare_limit || 200) / 100).toFixed(2).replace(/\.00$/, '');
