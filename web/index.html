@@ -201,10 +201,25 @@ input[type=text]:disabled{opacity:.45}
 .numerr{font-size:12px;color:var(--ink3);margin-top:8px;min-height:18px;line-height:1.4}
 .numerr.bad{color:#d92d20}
 .numerr.good{color:var(--brand)}
+/* 「保存会取消已有预约」必须醒目：独立色块 + 大字标题，不能只塞进 .hint 小字里 */
+.numwarn{display:flex;gap:11px;align-items:flex-start;margin:0 0 16px;padding:14px 15px;border-radius:15px;
+  background:rgba(247,144,9,.13);border:1.5px solid rgba(247,144,9,.45);color:#b54708}
+.numwarn .nw-ico{flex:none;width:22px;height:22px;border-radius:50%;background:#f79009;color:#fff;
+  font-size:14px;font-weight:800;line-height:22px;text-align:center;margin-top:1px}
+.numwarn .nw-body{flex:1;min-width:0}
+.numwarn .nw-t{font-size:15.5px;font-weight:800;line-height:1.45;letter-spacing:.2px;color:#b54708}
+.numwarn .nw-d{font-size:13px;font-weight:600;line-height:1.55;margin-top:5px;color:#b54708;opacity:.95}
+.numwarn.calm{background:rgba(16,24,40,.04);border-color:var(--line)}
+.numwarn.calm .nw-ico{background:var(--ink3)}
+.numwarn.calm .nw-t,.numwarn.calm .nw-d{color:var(--ink2)}
 @media (prefers-color-scheme:dark){
   input[type=range]::-webkit-slider-thumb{background:#1b2533}
   .numerr.bad{color:#ff8a80}
   .numerr.good{color:#8ab4f8}
+  .numwarn{background:rgba(247,144,9,.16);border-color:rgba(253,176,34,.5)}
+  .numwarn .nw-t,.numwarn .nw-d{color:#fdb022}
+  .numwarn.calm{background:rgba(255,255,255,.05)}
+  .numwarn.calm .nw-t,.numwarn.calm .nw-d{color:var(--ink2)}
 }
 .monthpick{font-size:12px;color:var(--brand);font-weight:600;padding:4px 10px;border-radius:99px;
   line-height:1.25;background:rgba(37,99,235,.08);cursor:pointer;border:0;font-family:inherit}
@@ -398,6 +413,13 @@ input[type=tel]::placeholder{color:var(--ink3)}
   <div class="bar-h"></div>
   <h3 id="numTitle">消费限时</h3>
   <div class="hint" id="numHint"></div>
+  <div class="numwarn" id="numWarn">
+    <span class="nw-ico">!</span>
+    <div class="nw-body">
+      <div class="nw-t" id="numWarnTitle">保存后会自动取消已有预约</div>
+      <div class="nw-d" id="numWarnDesc"></div>
+    </div>
+  </div>
   <div class="rgval"><span id="numBig">30</span><small id="numBigUnit">分钟</small></div>
   <input type="range" id="numRange" min="1" max="120" step="1" value="30">
   <div class="rgticks"><span id="numMin">1 分钟</span><span id="numMax">120 分钟</span></div>
@@ -419,7 +441,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
   <div class="bar-h"></div>
   <h3>充值</h3>
   <div class="hint">
-    本客户端只负责洗澡取码，不处理支付。<br>
+    本客户端只负责洗澡预约，不处理支付。<br>
     充值请打开微信 → 搜索小程序<strong>「完美校园」</strong> → 首页点「充值」。
   </div>
   <div style="display:flex;gap:9px;margin-top:16px">
@@ -545,7 +567,7 @@ function renderOrder() {
         <div style="min-width:0">
           <h2>${o.bathroomname || '已预约'}</h2>
           <div class="meta">
-            <span>取码时间 ${o.orderdatetime || ''}</span>
+            <span>预约时间 ${o.orderdatetime || ''}</span>
             <span>限时 ${o.max_time_limit || 30} 分钟 · 限额 ${fare} 元</span>
           </div>
         </div>
@@ -773,7 +795,7 @@ async function loadAll() {
         <div style="text-align:center;padding:22px 6px">
           <div style="font-size:15px;font-weight:650;margin-bottom:6px">${logged ? '登录态已失效' : '还没有登录'}</div>
           <div style="font-size:12.5px;color:var(--ink2);line-height:1.7;margin-bottom:16px">
-            用手机号登录后即可取码，不需要原版 App。
+            用手机号登录后即可预约，不需要原版 App。
           </div>
           <button class="btn" id="btnLoginNow" style="width:100%">用手机号登录</button>
         </div>`;
@@ -954,8 +976,8 @@ function openPicker(title, hint, options, current, cb, cols) {
 function hostSheetHint() {}
 
 /* ---------- 消费限制：滑块 + 文本框，金额以 0.05 元为步进 ---------- */
-/* 订单里存着取码当时的限时/限额：只改设置不重新取码，新数值不会生效。
-   所以保存成功后把所有已存在的预约撤销，让用户重新取码。 */
+/* 订单里存着预约当时的限时/限额：只改设置不重新预约，新数值不会生效。
+   所以保存成功后把所有已存在的预约撤销，让用户重新预约。 */
 async function revokeAllOrders() {
   const orders = [], seen = new Set();
   for (const o of (state.orders || [])) {
@@ -983,8 +1005,8 @@ async function saveSettings(timeMin, fareYuan) {
     await loadAll();                 /* 再刷新界面，验证码卡片随之消失 */
     if (r && r.total) {
       toast(r.failed
-        ? `已保存，但 ${r.failed} 条旧预约取消失败（成功 ${r.done} 条），请检查后重新取码`
-        : `已保存，已取消 ${r.done} 条旧预约，请重新取码`, !!r.failed);
+        ? `已保存，但 ${r.failed} 条旧预约取消失败（成功 ${r.done} 条），请检查后重新预约`
+        : `已保存，已取消 ${r.done} 条旧预约，请重新预约`, !!r.failed);
     } else {
       toast(j.message || '已保存（当前没有预约）');
     }
@@ -994,14 +1016,14 @@ async function saveSettings(timeMin, fareYuan) {
 /* 内部一律用整数：时间=分钟，金额=分；step 也是整数，避免浮点误差 */
 const LIMIT_FIELDS = {
   time: {
-    title: '消费限时', hint: '单次最长使用时长，从设备开阀后开始累计；保存后会取消已有预约，需重新取码',
+    title: '消费限时', hint: '单次最长使用时长，从设备开阀后开始累计',
     min: 1, max: 120, step: 1, unit: '分钟', scale: 1, unlimited: 0,
     stepText: '1 分钟', placeholder: '1 – 120 的整数',
     bad: '只能填 1–120 的整数'
   },
   fare: {
     title: '消费限额',
-    hint: '单次最高消费金额，按 0.05 元递增；保存后会取消已有预约，需重新取码',
+    hint: '单次最高消费金额，按 0.05 元递增',
     min: 100, max: 2000, step: 5, unit: '元', scale: 100, unlimited: 500000,
     stepText: '0.05 元', placeholder: '1.00 – 20.00，如 2.35',
     bad: '只能填 1.00–20.00 的数字，最多两位小数'
@@ -1071,7 +1093,16 @@ function openLimit(kind, value, onSave) {
   numCur.val = cfg.min + Math.round((v - cfg.min) / cfg.step) * cfg.step;
   $('#numTitle').textContent = cfg.title;
   $('#numHint').textContent = cfg.hint;
-  $('#numSave').textContent = (state.orders || []).length ? '保存并取消预约' : '保存';
+  /* 取消预约的影响要一眼看见：按当前预约条数给出醒目提示，而不是一行灰色小字 */
+  const nOrders = (state.orders || []).length;
+  $('#numWarn').classList.toggle('calm', !nOrders);
+  $('#numWarnTitle').textContent = nOrders
+    ? '保存后会自动取消已有预约'
+    : '当前没有预约，保存不会取消任何订单';
+  $('#numWarnDesc').textContent = nOrders
+    ? `现有 ${nOrders} 条预约会被取消，保存后请重新预约。`
+    : '新数值只对之后新预约的订单生效。';
+  $('#numSave').textContent = nOrders ? '保存并取消预约' : '保存';
   $('#numUnit').textContent = cfg.unit;
   $('#numInput').placeholder = cfg.placeholder;
   $('#numInput').setAttribute('inputmode', cfg.scale === 100 ? 'decimal' : 'numeric');
