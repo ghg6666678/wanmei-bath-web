@@ -1651,7 +1651,7 @@ function renderUpdate(res) {
   } else {
     st.className = 'updstate ok';
     st.innerHTML = '<div><div class="t">已是最新版本</div><div class="d">当前 ' + esc(cur) +
-      (cmp < 0 ? '，线上最新是 ' + esc(latest.version) + '（当前是开发版）' : '') +
+      (cmp < 0 ? '，线上最新是 ' + esc(latest.version) + '（当前版本比线上更高）' : '') +
       ' · 来源：' + esc(res.source || '') + '</div></div>';
     tip.textContent = '';
   }

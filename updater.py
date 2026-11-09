@@ -28,6 +28,10 @@ REPO = 'ghg6666678/wanmei-bath-android'
 GITHUB_API = 'https://api.github.com/repos/%s/releases/latest' % REPO
 GITHUB_MIRROR = 'https://ghproxy.cn/https://api.github.com/repos/%s/releases/latest' % REPO
 JSDELIVR = 'https://cdn.jsdelivr.net/gh/%s@main/latest.json' % REPO
+# jsDelivr 主节点（Fastly）对分支文件缓存 12 小时，刚发版后仍返回旧版本；
+# 备用节点与 raw 都是即时生效的，一起探测并取版本号最高的。
+JSDELIVR_GCORE = 'https://gcore.jsdelivr.net/gh/%s@main/latest.json' % REPO
+JSDELIVR_CN = 'https://jsd.onmicrosoft.cn/gh/%s@main/latest.json' % REPO
 RAW = 'https://raw.githubusercontent.com/%s/main/latest.json' % REPO
 
 LOCAL_MANIFEST = os.path.join(HERE, 'web', 'latest.json')
@@ -210,6 +214,8 @@ def _probe():
         ('GitHub 官方接口', GITHUB_API, _from_release),
         ('GitHub 代理镜像', GITHUB_MIRROR, _from_release),
         ('jsDelivr CDN', JSDELIVR, _from_manifest),
+        ('jsDelivr 备用节点', JSDELIVR_GCORE, _from_manifest),
+        ('jsDelivr 国内节点', JSDELIVR_CN, _from_manifest),
         ('raw 直连', RAW, _from_manifest),
     ]
     tried = []
