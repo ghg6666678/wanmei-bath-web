@@ -6,7 +6,6 @@
   "apkName": "zhishui-1.1.0.apk",
   "mirrors": [
     "https://cdn.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@v1.1.0/release/zhishui-1.1.0.apk",
-    "https://gcore.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@v1.1.0/release/zhishui-1.1.0.apk",
-    "https://jsd.onmicrosoft.cn/gh/ghg6666678/wanmei-bath-android@v1.1.0/release/zhishui-1.1.0.apk"
+    "https://gcore.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@v1.1.0/release/zhishui-1.1.0.apk"
   ]
 }

@@ -33,7 +33,6 @@ JSDELIVR = 'https://cdn.jsdelivr.net/gh/%s@main/latest.json' % REPO
 # jsDelivr 主节点（Fastly）对分支文件缓存 12 小时，刚发版后仍返回旧版本；
 # 备用节点与 raw 都是即时生效的，一起探测并取版本号最高的。
 JSDELIVR_GCORE = 'https://gcore.jsdelivr.net/gh/%s@main/latest.json' % REPO
-JSDELIVR_CN = 'https://jsd.onmicrosoft.cn/gh/%s@main/latest.json' % REPO
 RAW = 'https://raw.githubusercontent.com/%s/main/latest.json' % REPO
 
 LOCAL_MANIFEST = os.path.join(HERE, 'web', 'latest.json')
@@ -53,10 +52,11 @@ STALE_TTL = 7 * 24 * 3600  # 磁盘缓存里超过 7 天就不再用
 # 用版本 tag 定位，而不是 @main：jsDelivr 对分支快照有 12 小时解析缓存，
 # 刚发版时 @main 可能还指向旧提交（404 或返回上一版文件）；tag 是全新引用，立刻可用。
 # 因此发版顺序必须是「提交 APK → 打 tag → 发 Release」。
+# 只有这两个节点是「直接服务内容」的（响应头 Server: cloudflare）。
+# 曾用的 jsd.onmicrosoft.cn 实测是 301 跳 raw.githubusercontent.com，不是真 CDN，已移除。
 CDNS = [
     'https://cdn.jsdelivr.net/gh/%s@v%s/release/%s',
     'https://gcore.jsdelivr.net/gh/%s@v%s/release/%s',
-    'https://jsd.onmicrosoft.cn/gh/%s@v%s/release/%s',
 ]
 
 _lock = threading.Lock()
@@ -274,7 +274,6 @@ def _probe():
         ('GitHub 官方接口', GITHUB_API, _from_release),
         ('jsDelivr CDN', JSDELIVR, _from_manifest),
         ('jsDelivr 备用节点', JSDELIVR_GCORE, _from_manifest),
-        ('jsDelivr 国内节点', JSDELIVR_CN, _from_manifest),
         ('raw 直连', RAW, _from_manifest),
     ]
     tried = []
