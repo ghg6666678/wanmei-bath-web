@@ -494,6 +494,30 @@ input[type=tel]::placeholder{color:var(--ink3)}
   </div>
 </div>
 
+<!-- 首次启动引导：说明「不用装官方 App 也能绑校园卡」的路径 -->
+<!-- 首次启动引导：说明「不用装官方 App 也能绑校园卡」的路径 -->
+<div class="sheet" id="guideSheet">
+  <div class="bar-h"></div>
+  <h3>第一次用？先绑一下校园卡</h3>
+  <div class="hint">
+    这个 App 直接对接接口，不需要原版 App。但<strong>账号得先在官方那边绑好校园卡</strong>，
+    否则登录后会提示缺少信息，用不了。
+  </div>
+  <div class="warnbox" style="line-height:1.75">
+    <strong>不想装官方 App？用微信小程序绑也一样：</strong><br>
+    微信搜「完美校园」小程序 → 选学校 → 首页点「绑定校园卡」→
+    填姓名、学工号、校园卡密码。<br>
+    <span style="opacity:.8">校园卡密码一般是身份证后六位，末位是字母 X 的按 0 填。</span>
+  </div>
+  <div class="tipnote">
+    小程序只有绑卡功能，没有「智慧用水」，所以绑完再回这个 App 登录。
+  </div>
+  <div style="display:flex;gap:9px;margin-top:16px">
+    <button class="btn ghost" style="flex:1;padding:14px" id="guideLater">稍后再说</button>
+    <button class="btn" style="flex:1;padding:14px" id="guideOk">知道了</button>
+  </div>
+</div>
+
 <!-- 确认弹层（替代 WebView 里很突兀的原生 confirm） -->
 <div class="sheet" id="cfSheet">
   <div class="bar-h"></div>
@@ -782,6 +806,32 @@ function dormNo(r) {
   const a = s.match(/(\d+)\s*号/);
   return a ? parseInt(a[1], 10) : 99999;
 }
+/* ---------- 首次启动引导 / 校园卡绑定指引 ---------- */
+/* 持久化标记：看过一次就不再弹。原生优先，浏览器回落 localStorage */
+function getFirstRunFlag() {
+  if (typeof Android !== 'undefined' && Android.getFirstRunFlag) {
+    try { return Android.getFirstRunFlag() || ''; } catch (e) { }
+  }
+  try { return localStorage.getItem('firstRunShown') || ''; } catch (e) { return ''; }
+}
+function setFirstRunFlag(v) {
+  if (typeof Android !== 'undefined' && Android.setFirstRunFlag) {
+    try { Android.setFirstRunFlag(v || ''); return; } catch (e) { }
+  }
+  try {
+    if (v) localStorage.setItem('firstRunShown', v);
+    else localStorage.removeItem('firstRunShown');
+  } catch (e) { }
+}
+
+/* 引导弹层：说明「不用装官方 App 也能绑校园卡」的路径 */
+function openGuide() {
+  showSheet('#guideSheet');
+}
+function closeGuide() {
+  setFirstRunFlag('1');
+  hideSheet();
+}
 /* 星标楼栋存进原生（file:// 页面里 localStorage 不保证可用），浏览器回落到 localStorage */
 function getStar() {
   if (typeof Android !== 'undefined' && Android.getStarDorm) {
@@ -938,16 +988,26 @@ async function loadAll() {
     const msg = String(e.message || e);
     if (/登录|token|票据/i.test(msg)) {
       const logged = (state.cfg || {}).hasToken;
+      /* 未登录时 /api/state 拿不到 config，这里单独拉一次 /api/config：
+         它不要求登录，能拿到「这个号还没绑校园卡」这个判断。 */
+      try {
+        const cj = await api('/api/config');
+        state.cfg = cj.config || state.cfg;
+      } catch (e2) { }
       $('#roomList').innerHTML = `
         <div style="text-align:center;padding:22px 6px">
           <div style="font-size:15px;font-weight:650;margin-bottom:6px">${logged ? '登录态已失效' : '还没有登录'}</div>
           <div style="font-size:12.5px;color:var(--ink2);line-height:1.7;margin-bottom:16px">
-            用手机号登录后即可预约，不需要原版 App。
+            用手机号登录后即可预约，不需要原版 App。<br>
+            ${(state.cfg || {}).needCard ? '首次使用请先绑定校园卡，见下方提示。' : ''}
           </div>
           <button class="btn" id="btnLoginNow" style="width:100%">用手机号登录</button>
+          ${(state.cfg || {}).needCard ? '<button class="btn ghost" id="btnShowGuide" style="width:100%;margin-top:9px">怎么看绑校园卡？</button>' : ''}
         </div>`;
       const b = $('#btnLoginNow');
       if (b) b.onclick = openLogin;
+      const bg = $('#btnShowGuide');
+      if (bg) bg.onclick = openGuide;
       $('#orderCard').classList.add('hidden');
       $('#balNum').textContent = '—';
       $('#hSub').textContent = '';
@@ -1730,9 +1790,16 @@ $('#lgSubmit').onclick = async () => {
   try {
     await nativeCall('doLogin', phone, code);
     hideSheet();
-    toast('登录成功');
     $('#lgCode').value = '';
     await loadAll();
+    /* state.cfg 是 loadAll 里刷新的，所以要在它之后判断：
+       登录成功了，但官方那边这个号还没绑校园卡 → 给出绑定指引。 */
+    if ((state.cfg || {}).needCard) {
+      toast('登录成功，但账号还没绑校园卡');
+      setTimeout(openGuide, 700);
+    } else {
+      toast('登录成功');
+    }
   } catch (e) {
     $('#lgWarn').textContent = e.message;
     $('#lgWarn').style.display = 'block';
@@ -2214,6 +2281,14 @@ window.__onShow = function () {
   __lastShow = now;
   loadAll();
 };
+
+/* 首次启动：弹一次引导，说明校园卡怎么绑（不需要装官方 App 的那条路径）。
+   标记存原生；浏览器端 localStorage 可能不可用，失败就当没标记过，下次还会弹。 */
+if (!getFirstRunFlag()) {
+  setTimeout(openGuide, 500);
+}
+$('#guideOk').onclick = closeGuide;
+$('#guideLater').onclick = closeGuide;
 
 loadAll();
 // 3 分钟一次即可：太密会把这个账号的用水会话打挂（实测高频请求会触发保护）
