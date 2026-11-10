@@ -246,8 +246,16 @@ input[type=text]:disabled{opacity:.45}
   .numwarn.calm{background:rgba(255,255,255,.05)}
   .numwarn.calm .nw-t,.numwarn.calm .nw-d{color:var(--ink2)}
 }
-.monthpick{font-size:12px;color:var(--brand);font-weight:600;padding:4px 10px;border-radius:99px;
-  line-height:1.25;background:rgba(37,99,235,.08);cursor:pointer;border:0;font-family:inherit}
+.monthpick{font-size:12px;color:var(--brand);font-weight:600;padding:4.5px 22px 4.5px 11px;
+  border-radius:99px;line-height:1.25;background:rgba(37,99,235,.08);cursor:pointer;border:0;
+  font-family:inherit;position:relative;display:inline-block;white-space:nowrap}
+/* 倒三角：照原版 .record-header__left-month:after 的做法，border 画实心三角。
+   原版是白底 + #999 灰三角；我们这里是蓝底胶囊，所以用 currentColor 跟随文字色，
+   深色模式下也能自动适配。右侧 padding 特意比左侧大，就是给这个三角留位置。 */
+.monthpick::after{content:'';position:absolute;top:50%;right:8.5px;transform:translateY(-40%);
+  width:0;height:0;border-top:5px solid currentColor;
+  border-left:4.5px solid transparent;border-right:4.5px solid transparent;opacity:.8}
+.monthpick:active{background:rgba(37,99,235,.16)}
 /* 记录页标题行带胶囊按钮，需要比默认（负边距）更宽松的间距，否则会贴到卡片上 */
 /* 内页（记录/我的）的标题不在 main 的 flex 流里，拿不到 gap，需自带宽间距 */
 #pageRec .sec-title, #pageMe .sec-title{margin:2px 4px 12px}
