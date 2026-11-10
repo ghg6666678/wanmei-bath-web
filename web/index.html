@@ -862,6 +862,7 @@ async function loadAll() {
     $('#hName').textContent = state.cfg.name ? state.cfg.name + ' · 洗澡' : '洗澡';
     $('#hSub').textContent = state.cfg.school || '';
     renderBalance(); renderOrder(); renderRooms(); renderMe();
+    scheduleRecPrefetch();          /* 会话已热，顺手把记录页的当前月拉下来 */
   } catch (e) {
     const msg = String(e.message || e);
     if (/登录|token|票据/i.test(msg)) {
@@ -1422,15 +1423,26 @@ document.querySelectorAll('nav button').forEach(b => {
   };
 });
 
-/* 记录页预取：首页数据到位后，趁会话还热先把当前月拉一次，
-   用户切过去时数据已经在内存里了。
-   失败不算数——把状态退回未加载，等用户真的切过去时重试。 */
-setTimeout(async () => {
-  if (rec.month || rec.loading) return;
-  if (document.querySelector('.sheet.on')) return;   /* 正在登录/弹层，别抢 */
-  await loadRecords('reset');
-  if (rec.error) { rec.error = ''; rec.month = ''; }
-}, 3000);
+/* 记录页预取：首页数据一到位就排上。
+   为什么挂在 loadAll 之后而不是写死延迟 3 秒：
+     · 会话是 loadAll 里换好的，它完成之后才「热」；
+     · 原生桥上的请求是串行的（Api 的方法都带 synchronized），
+       太早发起会和首页请求排队，反而拖慢首屏；
+     · 原来固定等 3 秒，用户打开 App 就切到记录页时预取还没开始，
+       等于白做——这个函数就是为了让预取总能赶上。
+   覆盖不了「打开就立刻切」的情况（那时候网络还没回来），
+   那种只能靠落盘缓存，见 docs/RECORDS_CACHE.md。 */
+let recPrefetchTimer = 0;
+function scheduleRecPrefetch() {
+  if (rec.month) return;                      /* 已经有数据了，不用再来 */
+  clearTimeout(recPrefetchTimer);
+  recPrefetchTimer = setTimeout(async () => {
+    if (rec.month || rec.loading) return;
+    if (document.querySelector('.sheet.on')) return;   /* 弹层开着，等下次 loadAll */
+    await loadRecords('reset');
+    if (rec.error) { rec.error = ''; rec.month = ''; }
+  }, 250);
+}
 
 /* ---------- 下拉刷新（替代右上角那个太细的刷新按钮） ---------- */
 const PULL_TRIGGER = 70;   /* 手指实际下拉的像素阈值 */
