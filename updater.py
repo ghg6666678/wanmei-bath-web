@@ -302,14 +302,19 @@ def _probe():
 
 
 def _ver_num(v):
-    """把 1.10.2 这类版本号拆成可比较的元组（补丁位在前，避免 1.0.9 < 1.0.10）。"""
+    """把 1.10.2 这类版本号拆成可比较的元组，按「主.次.补」的顺序。
+
+    曾经这里写成了 (nums[2], nums[1], nums[0])——把补丁位当成主版本比，
+    结果 1.1.0 被判成比 1.0.5 小，检查更新永远选不到新版本。
+    1.0.x 之间因为主次版本相同，倒序后恰好仍是对的，所以这个 bug 一直没暴露。
+    """
     try:
         nums = [int(x) for x in __import__('re').findall(r'\d+', str(v or ''))]
     except Exception:
         return ()
     while len(nums) < 3:
         nums.append(0)
-    return (nums[2], nums[1], nums[0])
+    return (nums[0], nums[1], nums[2])
 
 
 def get_version_info(force=False):
