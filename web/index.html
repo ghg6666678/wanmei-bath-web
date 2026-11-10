@@ -1031,7 +1031,8 @@ function renderRec() {
 async function loadRecords(mode) {
   mode = mode || 'more';
   if (!recMonth) recMonth = monthStr(serverNow());
-  $('#recMonth').textContent = recMonth.replace('-', ' 年 ') + ' 月';
+  const _ym = recMonth.split('-');
+  $('#recMonth').textContent = _ym[0] + ' 年 ' + (+_ym[1]) + ' 月';   /* 03 → 3 */
 
   if (mode === 'more') {
     if (rec.loading || rec.finished || rec.month !== recMonth) return;
@@ -1094,13 +1095,19 @@ window.addEventListener('scroll', () => {
 }, {passive: true});
 
 $('#recMonth').onclick = () => {
+  /* 范围跟原版一致：官方 H5 的月份选择器是 minDate=2020-01-01、maxDate=当前，
+     type=year-month。这里原来写死 6 个月，纯属自己加的，没有依据。
+     标签必须带年份——跨年之后「11 月」会出现好几次，分不清是哪个。 */
   const opts = [];
   const base = serverNow();
-  for (let i = 0; i < 6; i++) {
-    const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
-    opts.push({v: monthStr(d), label: (d.getMonth() + 1) + ' 月'});
+  const stop = new Date(2020, 0, 1);
+  for (let d = new Date(base.getFullYear(), base.getMonth(), 1), guard = 0;
+       d >= stop && guard < 400;
+       d = new Date(d.getFullYear(), d.getMonth() - 1, 1), guard++) {
+    const v = monthStr(d);
+    opts.push({v: v, label: v});
   }
-  openPicker('选择月份', '只能查最近 6 个月', opts, recMonth, v => {
+  openPicker('选择月份', '最早可查 2020 年 1 月', opts, recMonth, v => {
     recMonth = v;
     rec.month = '';                 /* 换月份必须重来，不能复用旧列表 */
     loadRecords('reset');
@@ -1126,6 +1133,14 @@ function openPicker(title, hint, options, current, cb, cols) {
     };
   });
   showSheet('#pickSheet');
+  /* 选项多了（月份有 80 多个）之后，当前选中的那个可能落在可视区外，
+     打开时看着像「什么都没选中」。等布局完成再把它滚进来。
+     用 'center' 让它处在列表中间，上下相邻的月份都能看见；
+     inline 用 'nearest' 避免触发横向滚动。 */
+  requestAnimationFrame(() => {
+    const on = $('#pickList .on');
+    if (on) on.scrollIntoView({block: 'center', inline: 'nearest'});
+  });
 }
 
 function hostSheetHint() {}
