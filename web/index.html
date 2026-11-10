@@ -977,42 +977,120 @@ let recMonth = '';
 
 function monthStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1); }
 
-async function loadRecords() {
+/* ---------- 记录页：分页 + 内存缓存 ----------
+   参照官方页面的做法：
+   · 切月份时清空重来（对应它 currentPage==1 才 recordList=[]）
+   · 翻页时追加，不整页重绘
+   · 切回 tab 不重建，直接复用内存数据（对应它的 keep-alive）
+   · 加载时不清屏，只在列表末尾显示状态——这是「不觉得在等」的关键
+   官方用 totalcount 判断是否到底，这里同样优先用它。 */
+const REC_PAGE = 20;
+const rec = { month: '', items: [], total: 0, count: 0, page: 1,
+              finished: false, loading: false, at: 0, error: '' };
+
+function recRowHtml(r) {
+  const fare = Number(r.opfare || 0);
+  const paid = String(r.status) === '1';
+  const title = r.termname ? r.termname : ('设备 ' + (r.termid || ''));
+  const sub = esc(r.end_opdt || '') + (r.termid && r.termname ? ' · ' + esc(r.termid) : '');
+  return `<div class="rec">
+    <span style="min-width:0">
+      <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</span>
+      <span class="r">${sub}</span>
+    </span>
+    <span style="text-align:right;white-space:nowrap">
+      <b>-${fare.toFixed(2)}</b>
+      <div class="r" style="color:${paid ? 'var(--ok)' : 'var(--warn)'}">${paid ? '已扣费' : '未扣费'}</div>
+    </span>
+  </div>`;
+}
+
+function renderRec() {
   const box = $('#recList');
+  if (!rec.items.length) {
+    if (rec.loading) { box.innerHTML = '<div class="empty">加载中…</div>'; return; }
+    if (rec.error) { box.innerHTML = '<div class="empty">' + esc(rec.error) + '</div>'; return; }
+    box.innerHTML = '<div class="empty">' + (rec.month ? '本月暂无用水记录' : '加载中…') + '</div>';
+    return;
+  }
+  const head = `<div class="rec" style="padding-top:0">
+      <span style="font-weight:650">本月支出</span>
+      <span style="font-weight:700;color:var(--brand);font-size:16px">¥${rec.total.toFixed(2)}</span>
+    </div>`;
+  let foot = '';
+  if (rec.loading) foot = '<div class="empty" style="padding:14px">加载中…</div>';
+  else if (rec.error) foot = '<div class="empty" style="padding:14px">' + esc(rec.error) + '</div>';
+  else if (rec.finished && rec.items.length >= REC_PAGE) {
+    foot = '<div class="empty" style="padding:14px">没有更多了</div>';
+  }
+  box.innerHTML = head + rec.items.map(recRowHtml).join('') + foot;
+}
+
+/* mode: 'reset' 切月份/首次（清空重来） | 'refresh' 后台刷新（不清屏） | 'more' 下一页 */
+async function loadRecords(mode) {
+  mode = mode || 'more';
   if (!recMonth) recMonth = monthStr(serverNow());
   $('#recMonth').textContent = recMonth.replace('-', ' 年 ') + ' 月';
-  box.innerHTML = '<div class="empty">加载中…</div>';
-  try {
-    const j = await api('/api/records?month=' + encodeURIComponent(recMonth));
-    const d = j.data;
-    if (!d || !d.data || !d.data.length) {
-      box.innerHTML = '<div class="empty">本月暂无用水记录</div>';
-      return;
-    }
-    const total = Number(d.totalfare || 0);
-    box.innerHTML = `
-      <div class="rec" style="padding-top:0">
-        <span style="font-weight:650">本月支出</span>
-        <span style="font-weight:700;color:var(--brand);font-size:16px">¥${total.toFixed(2)}</span>
-      </div>` + d.data.map(r => {
-        const fare = Number(r.opfare || 0);
-        const paid = String(r.status) === '1';
-        const title = r.termname ? `${r.termname}` : `设备 ${r.termid || ''}`;
-        return `<div class="rec">
-          <span style="min-width:0">
-            <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${title}</span>
-            <span class="r">${r.end_opdt || ''}${r.termid && r.termname ? ' · ' + r.termid : ''}</span>
-          </span>
-          <span style="text-align:right;white-space:nowrap">
-            <b>-${fare.toFixed(2)}</b>
-            <div class="r" style="color:${paid ? 'var(--ok)' : 'var(--warn)'}">${paid ? '已扣费' : '未扣费'}</div>
-          </span>
-        </div>`;
-      }).join('');
-  } catch (e) {
-    box.innerHTML = `<div class="empty">加载失败：${e.message}</div>`;
+
+  if (mode === 'more') {
+    if (rec.loading || rec.finished || rec.month !== recMonth) return;
+  } else {
+    if (rec.loading) return;
+    rec.month = recMonth; rec.page = 1; rec.finished = false; rec.error = '';
+    if (mode === 'reset') { rec.items = []; rec.total = 0; rec.count = 0; }
   }
+
+  rec.loading = true;
+  /* refresh 不动界面：旧内容留着，回来静默替换 */
+  if (mode !== 'refresh') renderRec();
+  const page = (mode === 'more') ? rec.page : 1;
+  try {
+    const j = await api('/api/records?month=' + encodeURIComponent(recMonth) + '&page=' + page);
+    const d = (j && j.data) || {};
+    const rows = d.data || [];
+    if (mode === 'more') {
+      rec.items = rec.items.concat(rows);
+    } else if (mode === 'refresh' && rec.items.length > rows.length) {
+      /* 已经翻过好几页时刷新：把头部换成最新的第一页，后面保留（去掉与第一页重复的）。
+         如果直接替换成第一页，列表会突然缩短、滚动位置被弹回顶部，
+         还会因为高度变化触发一次多余的「触底加载」。 */
+      const k = r => [r.end_opdt, r.termid, r.opfare].join('|');
+      const seen = new Set(rows.map(k));
+      rec.items = rows.concat(rec.items.filter(r => !seen.has(k(r))));
+    } else {
+      rec.items = rows;
+    }
+    rec.total = Number(d.totalfare || 0);
+    rec.count = Number(d.totalcount || 0);
+    rec.finished = rec.count ? (rec.items.length >= rec.count) : (rows.length < REC_PAGE);
+    if (!rec.finished) rec.page = page + 1;
+    rec.at = Date.now();
+    rec.error = '';
+  } catch (e) {
+    rec.error = (e && e.message) || '加载失败';
+  } finally {
+    rec.loading = false;
+    renderRec();
+  }
+  if (mode !== 'refresh') requestAnimationFrame(ensureRecFilled);
 }
+
+/* 内容不足一屏时用户没有可滚动空间，触底事件永远不来，这里补一次。
+   必须在记录页可见时判断——隐藏时 document 高度由首页决定，会误判成「还很空」。 */
+function ensureRecFilled() {
+  if (rec.finished || rec.loading || !rec.items.length) return;
+  if ($('#pageRec').classList.contains('hidden')) return;
+  if (document.documentElement.scrollHeight <= window.innerHeight + 80) loadRecords('more');
+}
+
+/* 触底自动加载下一页（官方是 van-list 的自动触底） */
+window.addEventListener('scroll', () => {
+  if ($('#pageRec').classList.contains('hidden')) return;
+  if (rec.loading || rec.finished || !rec.items.length) return;
+  if (rec.month !== recMonth) return;
+  const dh = document.documentElement;
+  if (dh.scrollTop + window.innerHeight >= dh.scrollHeight - 320) loadRecords('more');
+}, {passive: true});
 
 $('#recMonth').onclick = () => {
   const opts = [];
@@ -1023,7 +1101,8 @@ $('#recMonth').onclick = () => {
   }
   openPicker('选择月份', '只能查最近 6 个月', opts, recMonth, v => {
     recMonth = v;
-    loadRecords();
+    rec.month = '';                 /* 换月份必须重来，不能复用旧列表 */
+    loadRecords('reset');
   });
 };
 
@@ -1330,10 +1409,28 @@ document.querySelectorAll('nav button').forEach(b => {
     // 宿舍列表容器
     const sec = $('#roomList');
     sec.classList.toggle('hidden', tab !== 'home');
-    if (tab === 'rec') loadRecords();
+    if (tab === 'rec') {
+      /* 切回来直接复用内存里的数据，不发请求（官方靠 keep-alive 达到同样效果）。
+         只有换了月份、或距上次加载超过 1 分钟，才刷新——记录是会变的，
+         但刷新时不清屏，旧内容留着直到新数据回来。 */
+      const m = monthStr(serverNow());
+      if (rec.month !== m) { recMonth = m; loadRecords('reset'); }
+      else if (Date.now() - rec.at > 60000) loadRecords('refresh');
+      else { renderRec(); requestAnimationFrame(ensureRecFilled); }
+    }
     if (tab === 'me') renderMe();
   };
 });
+
+/* 记录页预取：首页数据到位后，趁会话还热先把当前月拉一次，
+   用户切过去时数据已经在内存里了。
+   失败不算数——把状态退回未加载，等用户真的切过去时重试。 */
+setTimeout(async () => {
+  if (rec.month || rec.loading) return;
+  if (document.querySelector('.sheet.on')) return;   /* 正在登录/弹层，别抢 */
+  await loadRecords('reset');
+  if (rec.error) { rec.error = ''; rec.month = ''; }
+}, 3000);
 
 /* ---------- 下拉刷新（替代右上角那个太细的刷新按钮） ---------- */
 const PULL_TRIGGER = 70;   /* 手指实际下拉的像素阈值 */
