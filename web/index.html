@@ -138,6 +138,9 @@ nav svg{width:22px;height:22px}
 /* 横条本身只有 4px，用伪元素把顶部一整条做成可拖动热区 */
 .sheet .bar-h::before{content:'';position:absolute;left:50%;transform:translateX(-50%);
   width:100vw;top:-14px;bottom:-18px}
+/* 锁定的弹层不能下拉关闭：去掉拖动热区，横条也画淡一点以示区别 */
+.sheet.locked .bar-h::before{display:none}
+.sheet.locked .bar-h{background:var(--line);opacity:.45}
 .sheet h3{margin:0 0 4px;font-size:17px}
 .bkfree{font-size:13px;font-weight:500;color:var(--ok);margin-left:8px;
   white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -824,13 +827,19 @@ function setFirstRunFlag(v) {
   } catch (e) { }
 }
 
-/* 引导弹层：说明「不用装官方 App 也能绑校园卡」的路径 */
+/* 引导弹层：说明「不用装官方 App 也能绑校园卡」的路径。
+   锁定打开 —— 点外面和下拉都不关，只能点自己的按钮。 */
 function openGuide() {
-  showSheet('#guideSheet');
+  showSheet('#guideSheet', true);
 }
 function closeGuide() {
   setFirstRunFlag('1');
-  hideSheet();
+  hideSheet(true);   /* 锁定状态只能从这里主动关 */
+  /* 引导期间登录框被压住了，现在补上 */
+  if (__loginPending) {
+    __loginPending = false;
+    setTimeout(openLogin, 300);
+  }
 }
 /* 星标楼栋存进原生（file:// 页面里 localStorage 不保证可用），浏览器回落到 localStorage */
 function getStar() {
@@ -1561,14 +1570,22 @@ $('#payWx').onclick = () => {
 };
 
 /* ---------- 弹层/导航 ---------- */
-function showSheet(sel) {
+/* locked 的弹层不允许「被动关闭」——点外面、下拉都不关，
+   只能点弹层自己的按钮。用于首次引导：误触关闭就再也看不到了。 */
+let __sheetLocked = false;
+/* 引导期间想弹登录框 → 记下来，等引导关掉再弹 */
+let __loginPending = false;
+
+function showSheet(sel, locked) {
   const m = $('#mask'), sh = $(sel);
   sh.style.removeProperty('--drag');
   sh.style.transition = '';
   m.style.removeProperty('opacity');
   m.style.removeProperty('pointer-events');
+  __sheetLocked = !!locked;
   m.classList.add('on');
   sh.classList.add('on');
+  sh.classList.toggle('locked', __sheetLocked);   /* 样式标记：横条不可拖 */
   document.body.style.overflow = 'hidden';   /* 弹层打开时背景不跟着滚 */
 }
 function closeMask() {
@@ -1579,11 +1596,20 @@ function closeMask() {
   m.style.setProperty('pointer-events', 'none', 'important');
   document.body.style.overflow = '';
 }
-function hideSheet() {
+function hideSheet(force) {
+  if (__sheetLocked && !force) return;
   closeMask();
-  document.querySelectorAll('.sheet').forEach(s => s.classList.remove('on'));
+  __sheetLocked = false;
+  document.querySelectorAll('.sheet').forEach(s => {
+    s.classList.remove('on');
+    s.classList.remove('locked');
+  });
 }
-$('#mask').onclick = hideSheet;
+$('#mask').onclick = () => {
+  /* 锁定的弹层不响应点外面关闭 */
+  if (__sheetLocked) return;
+  hideSheet();
+};
 
 /* ---------- 弹层：按住顶部横条下拉关闭（跟手），背景不跟着滚 ---------- */
 const SHEET_CLOSE_DY = 90;
@@ -1592,6 +1618,8 @@ let sheetDrag = null;
 document.addEventListener('touchstart', e => {
   const cur = document.querySelector('.sheet.on');
   if (!cur || !e.touches || e.touches.length !== 1) return;
+  /* 锁定的弹层不下拉关闭 —— 首次引导误触就没了 */
+  if (__sheetLocked) return;
   const bar = e.target && e.target.closest ? e.target.closest('.sheet.on .bar-h') : null;
   if (!bar || !cur.contains(bar)) return;
   sheetDrag = {el: cur, y0: e.touches[0].clientY, dy: 0};
@@ -1747,6 +1775,9 @@ $('#btnRecharge').onclick = () => showSheet('#paySheet');
 let __lgTimer = null;
 let __autoLoginShown = false;   /* 冷启动自动弹一次登录；主动退出后不再自动弹 */
 function openLogin() {
+  /* 首次引导还开着的时候不要抢弹层 —— 引导是锁定的，
+     被覆盖就等于失去保护。引导关闭后会自动再弹登录框。 */
+  if (__sheetLocked) { __loginPending = true; return; }
   $('#lgWarn').style.display = 'none';
   const c = (state.cfg || {});
   if ((c.phone || c.mobile) && !$('#lgPhone').value) $('#lgPhone').value = c.phone || c.mobile;
