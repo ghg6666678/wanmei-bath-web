@@ -297,7 +297,9 @@ input[type=tel]::placeholder{color:var(--ink3)}
 .updstate .spin{width:16px;height:16px;border-width:2px;border-color:rgba(37,99,235,.25);
   border-top-color:var(--brand);flex:none;margin-top:2px}
 .updnotes{font-size:12.5px;line-height:1.75;color:var(--ink2);white-space:pre-line;margin-top:12px;
-  padding:12px 13px;border-radius:12px;background:rgba(16,24,40,.04)}
+  padding:12px 13px;border-radius:12px;background:rgba(16,24,40,.04);
+  /* 日志改成完整显示后内容会变长，这里限高滚动，弹层本身不被撑爆 */
+  max-height:30vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .updalt{margin-top:14px;font-size:12px;color:var(--ink3);line-height:2}
 .updalt .lb{color:var(--ink2);font-weight:700;margin-top:8px}
 .updalt a{display:block;margin-top:1px}

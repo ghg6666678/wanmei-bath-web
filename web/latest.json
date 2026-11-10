@@ -1,11 +1,11 @@
 {
-  "version": "1.1.1",
-  "versionCode": 8,
-  "publishedAt": "2026-11-10T05:55:00Z",
-  "notes": "记录页重做：能翻页、切回来不用重等、月份可查 2020 年起\n修复：每月只显示前 20 条，一天一次的用户会漏看约 10 天记录\n修复：月份被写死成只能查 6 个月（原版是 2020 年起）\n修复：预取写死等 3 秒，打开就切记录页时等于没做\n月份选择改为滚轮；日期旁加倒三角，提示可点",
-  "apkName": "zhishui-1.1.1.apk",
+  "version": "1.1.2",
+  "versionCode": 9,
+  "publishedAt": "2026-11-10T06:10:00Z",
+  "notes": "修复「更新日志显示不全」：以前只显示 4 行、每行 70 字，撞到下一个小标题就停\n现在跳过代码块、保留小标题与列表、表格转成「问题 → 现状」，按 3000 字符封顶\n日志区可滚动，能看到全部条目；超过上限时才提示已截断\n其余功能与 1.1.1 一致",
+  "apkName": "zhishui-1.1.2.apk",
   "mirrors": [
-    "https://cdn.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@v1.1.1/release/zhishui-1.1.1.apk",
-    "https://gcore.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@v1.1.1/release/zhishui-1.1.1.apk"
+    "https://cdn.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@v1.1.2/release/zhishui-1.1.2.apk",
+    "https://gcore.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@v1.1.2/release/zhishui-1.1.2.apk"
   ]
 }

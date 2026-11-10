@@ -75,49 +75,69 @@ def _http_get(url, timeout=TIMEOUT):
         return r.read().decode('utf-8')
 
 
-def _summarize(body, limit=4):
-    """取发布说明里「本次更新」那一节，与原生 Update.summarize 规则一致。"""
+NOTE_MAX = 3000          # 更新日志摘要的字符上限：够放下要点，再长就让弹层滚动
+
+
+def _is_table_sep(line):
+    """Markdown 表格的分隔行，如 |---|:--:|。
+
+    用字符集合判断而不是正则：`\\-` 这类转义写在多层字符串里很容易被吃掉，
+    这里只需要知道「这一行除了竖线、冒号、减号、空格没别的」。
+    """
+    return bool(line) and all(c in '|:- ' for c in line)
+
+
+def _summarize(body):
+    """把 Release 正文抽成前端能直接显示的纯文本。
+
+    与原生 Update.summarize 规则保持一致：跳过代码块与一级标题；
+    二/三级标题当小标题；列表换「·」；表格转「· 左列 → 右列」；
+    去掉 **加粗** 与 `代码` 记号。
+
+    上限按字符数而不是行数 —— 之前限 4 行，遇到「短行多」的说明会截得只剩标题，
+    1.1.1 的日志就只显示出两行。
+    """
     if not body:
         return ''
-    lines = body.split('\n')
-    start = -1
-    for i, l in enumerate(lines):
-        t = l.strip()
-        if t.startswith('## ') and any(k in t for k in ('更新', '新增', '修复')):
-            start = i
-            break
-    if start < 0:
-        for i, l in enumerate(lines):
-            if l.strip().startswith('## '):
-                start = i
-                break
-    if start < 0:
-        for i, l in enumerate(lines):
-            t = l.strip()
-            if not t or t.startswith('# '):
-                continue
-            start = i - 1
-            break
-    if start < 0:
-        return ''
-
+    ls = body.split('\n')
     out = []
-    for i in range(start, len(lines)):
-        t = lines[i].strip()
-        if not t:
+    in_code = False
+
+    for i, raw in enumerate(ls):
+        t = raw.strip()
+        if t.startswith('```'):
+            in_code = not in_code
             continue
-        if i > start and t.startswith('#'):
-            break
-        if t.startswith('## '):
-            t = t[3:].strip()
-        if t.startswith('- ') or t.startswith('* '):
+        if in_code or not t:
+            continue
+        if t.startswith('# '):
+            continue
+
+        if t.startswith('|'):
+            nxt = ls[i + 1].strip() if i + 1 < len(ls) else ''
+            if _is_table_sep(t) or _is_table_sep(nxt):
+                continue                       # 分隔行 / 表头
+            cells = [c.strip() for c in t.strip('|').split('|') if c.strip()]
+            t = '· ' + ' → '.join(cells)
+        elif t.startswith('### '):
+            t = t[4:]
+            if out:
+                out.append('')                 # 小标题前空一行
+        elif t.startswith('## '):
+            t = t[3:]
+            if out:
+                out.append('')
+        elif t.startswith('- ') or t.startswith('* '):
+            t = '· ' + t[2:]
+        elif t.startswith('> '):
             t = t[2:]
-        t = t.replace('**', '')
-        if len(t) > 70:
-            t = t[:70] + '…'
+
+        t = t.replace('**', '').replace('`', '')
         out.append(t)
-        if len(out) >= limit:
-            break
+        if sum(len(x) + 1 for x in out) >= NOTE_MAX:
+            text = '\n'.join(out)[:NOTE_MAX] + '…（已截断，完整说明见下方链接）'
+            return text
+
     return '\n'.join(out)
 
 
