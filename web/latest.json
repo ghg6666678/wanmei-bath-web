@@ -1,7 +1,12 @@
 {
   "version": "1.0.5",
   "versionCode": 6,
-  "publishedAt": "2026-11-10T03:20:42Z",
+  "publishedAt": "2026-11-10T03:20:00Z",
   "notes": "1.0.5 修复：弹层里左右滑动会带着内容平移\n横条拖动热区的宽度写法会把弹层撑成可横向滚动，已改为居中定宽 + 只允许纵向滚\n补齐 1.0.4 遗留的两处文案（检测中提示、内置清单）",
-  "apkName": "zhishui-1.0.5.apk"
+  "apkName": "zhishui-1.0.5.apk",
+  "mirrors": [
+    "https://cdn.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@3f1c369/release/zhishui-1.0.5.apk",
+    "https://gcore.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@3f1c369/release/zhishui-1.0.5.apk",
+    "https://jsd.onmicrosoft.cn/gh/ghg6666678/wanmei-bath-android@3f1c369/release/zhishui-1.0.5.apk"
+  ]
 }
