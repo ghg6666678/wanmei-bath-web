@@ -32,8 +32,8 @@ Windows 上也可以直接双击 `启动.bat`（会调用 `server.py`）。
 
 ```
 server.py       零依赖 HTTP 服务（静态页 + JSON 接口 + 网页登录/退出 + 版本检查）
-vwater.py       智慧用水协议（AES-ECB 签名、entrance、预约、记录、限时限额）
-wxlogin.py      完美校园登录协议（RSA 换密钥 + 3DES + campusSign）
+vwater.py       智慧用水业务的协议实现（会话、预约、记录、限时限额）
+wxlogin.py      登录流程实现（建立会话、参数加密、签名）
 updater.py      检查更新：多通道探测 GitHub，本地清单 / 缓存兜底
 login.py        登录命令行：拿 session 并写入 config.json
 web/index.html  单页界面
@@ -43,18 +43,12 @@ config.json     登录后生成，含票据和个人信息（已在 .gitignore �
 
 ## 它是怎么工作的
 
-1. `login.py` 先调 `exchangeSecretkey` 用 RSA 公钥换密钥，服务端返回一个 `session`
-2. 用**同一个 session** 提交短信验证码登录，服务端把它升格为账号会话
-3. 这个 session 就是「智慧用水」H5 需要的 token；网页端登录走 `/api/native`，复用同一套 `WxLogin` 会话（`sendCode` 与 `doLogin` 必须是同一个 session）
-4. 之后每次请求带三个头：
+1. `login.py` 先建立会话：客户端生成一对临时密钥交给服务端，换回会话标识与一份密钥材料
+2. 用**同一个会话**提交短信验证码登录，服务端把它升格为账号会话
+3. 这个会话就是「智慧用水」要的凭据；网页端登录走 `/api/native`，复用同一套 `WxLogin` 会话（发码与登录必须是同一个会话）
+4. 之后每次业务请求都要带会话标识、当前时间，以及由这两者算出的签名
 
-```
-uuid:      entrance 换来的会话 uuid
-timestamp: 毫秒时间戳
-encrypt:   AES-ECB-PKCS7(uuid + "-" + timestamp, 16 字节固定密钥) 的 base64
-```
-
-签名密钥是官方 H5 前端 JS 里的一行 **16 字节明文常量**（标准 AES-128，见 `vwater.py` 的 `SIGN_KEY`），属于协议层还原，不涉及破解任何账号。Java 侧 `AES/ECB/PKCS5Padding` 与前端 PKCS7 填充等价。
+签名规则与常量不在 README 展开，实现见 `vwater.py`。所有协议都用 Python 标准库加 `pycryptodome` 实现，不需要 Node.js。
 
 ## 功能
 
@@ -78,20 +72,20 @@ encrypt:   AES-ECB-PKCS7(uuid + "-" + timestamp, 16 字节固定密钥) 的 base
 
 ## 参考实现
 
-登录协议（RSA 换密钥 → 3DES 加密提交 → `campusSign` 签名）不是猜出来的，参考了以下公开实现：
+登录流程不是猜出来的，参考了以下公开实现：
 
 - **[ReaJason/17wanxiaoCheckin](https://github.com/ReaJason/17wanxiaoCheckin)** · MIT · 已归档
-  其 `login/` 目录（`campus.py`、`des_3.py`、`rsa_encrypt.py`、`sha1.py`）完整描述了登录握手过程，本项目的 `wxlogin.py` 按这套流程重写。
+  其登录模块完整描述了登录握手过程，本项目的 `wxlogin.py` 按这套流程重写。
 - **[fuqiuluo/wanxiao-campus](https://github.com/fuqiuluo/wanxiao-campus)** · Rust · 未声明许可证
   用于交叉验证较新版本的登录流程与请求加密细节。
 
-用水业务协议（`entrance`、预约、限时限额、用水记录）来自官方 H5 前端 JavaScript 的协议还原，没有对应的开源项目。
+用水业务的流程来自对前端行为的分析，没有对应的开源项目。
 
 若本仓库中存在源自上述项目的代码片段，其版权归原作者所有，按 MIT 许可使用。
 
 ## 适用范围与其他学校
 
-网页端与 [安卓版](https://github.com/ghg6666678/wanmei-bath-android) 同源，目前只在**一所**使用「完美校园 智慧用水」的学校实测。公共域名、16 字节的标准 AES-128 签名密钥以及运行时下发的 `customerCode` / `customerid` / `outid` 是通用的，但以下三项来自我们校区的实际配置，换学校（甚至换校区）都可能需要调整：浴室命名格式（楼栋排序与星标 A/B 区合并）、**0.05 元扣费步进 / 1–20 元 / 1–120 分钟档位**、以及 `limittype` / `verificationtype` 等固定业务参数。
+网页端与 [安卓版](https://github.com/ghg6666678/wanmei-bath-android) 同源，目前只在**一个校区**实测。登录与业务都走完美校园的公共服务、签名规则固定，学校码 / 一卡通号 / 学号由登录返回，所以别校用户大概率能直接用；但以下三项来自我们校区的实际配置，换学校（甚至换校区）都可能需要调整：浴室命名格式（楼栋排序与星标 A/B 区合并）、**0.05 元扣费步进 / 1–20 元 / 1–120 分钟档位**、以及限时限额与验证方式的固定档位。
 
 跨校试用反馈请到 [安卓仓库的跨校适配反馈模板](https://github.com/ghg6666678/wanmei-bath-android/issues/new/choose) 提交；公开 issue 中请勿粘贴个人信息、验证码或 token。
 
