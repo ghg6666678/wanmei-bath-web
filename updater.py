@@ -4,9 +4,12 @@
 GitHub 在国内时通时不通，所以服务端也不把「能访问 GitHub」当前提，而是多通道依次尝试：
 
     1. GitHub 官方 Release 接口   —— 最权威，带更新日志、APK 直链与 sha256
-    2. GitHub 代理镜像（ghproxy）—— 官方接口不通时的替补
-    3. jsDelivr CDN 读 latest.json —— 国内 CDN，稳定性好
-    4. raw 直连读 latest.json
+    2. jsDelivr CDN 读 latest.json —— 国内 CDN，稳定性好
+    3. raw 直连读 latest.json
+
+> 曾经还有一条 ghproxy.cn 的代理通道。2026-11 实测发现该域名在移动网络下会把下载
+> 跳转到色情站点，已彻底移除。**免费代理域名一律不进代码**——它们随时可能被抢注或
+> 劫持，把用户导向哪里完全不受我们控制。宁可少一条通道。
 
 全部失败时依次退回：
 
@@ -26,7 +29,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 REPO = 'ghg6666678/wanmei-bath-android'
 GITHUB_API = 'https://api.github.com/repos/%s/releases/latest' % REPO
-GITHUB_MIRROR = 'https://ghproxy.cn/https://api.github.com/repos/%s/releases/latest' % REPO
 JSDELIVR = 'https://cdn.jsdelivr.net/gh/%s@main/latest.json' % REPO
 # jsDelivr 主节点（Fastly）对分支文件缓存 12 小时，刚发版后仍返回旧版本；
 # 备用节点与 raw 都是即时生效的，一起探测并取版本号最高的。
@@ -46,10 +48,13 @@ CACHE_TTL = 1800          # 30 分钟
 STALE_CACHE_TTL = 300     # 降级结果只缓存 5 分钟，网络恢复后尽快重探
 STALE_TTL = 7 * 24 * 3600  # 磁盘缓存里超过 7 天就不再用
 
-# 下载镜像：套在 GitHub 直链外面，给打不开 GitHub 的网络留条路
-MIRRORS = [
-    'https://ghfast.top/%s',
-    'https://ghproxy.cn/%s',
+# 下载加速：只走 jsDelivr 这类有企业背书的 CDN。APK 同时提交到仓库 release/ 目录，
+# 并用版本 tag 固定路径，这样拿到的就是这一版，不受分支缓存影响。
+# 文件名里带版本号，每版路径都是新的，所以分支缓存不会让用户拿到旧文件。
+CDNS = [
+    'https://cdn.jsdelivr.net/gh/%s@main/release/%s',
+    'https://gcore.jsdelivr.net/gh/%s@main/release/%s',
+    'https://jsd.onmicrosoft.cn/gh/%s@main/release/%s',
 ]
 
 _lock = threading.Lock()
@@ -126,8 +131,11 @@ def _with_download(latest):
     if not latest.get('releaseUrl'):
         latest['releaseUrl'] = ('https://github.com/%s/releases/tag/v%s' % (REPO, ver)
                                 if ver else 'https://github.com/%s/releases/latest' % REPO)
-    if not latest.get('mirrors') and apk:
-        latest['mirrors'] = [m % apk for m in MIRRORS]
+    if not latest.get('mirrors'):
+        name = latest.get('apkName') or ''
+        # 只有「仓库 release/ 目录里确实有这个文件」时才能拼 CDN 地址
+        if name:
+            latest['mirrors'] = [t % (REPO, name) for t in CDNS]
     return latest
 
 
@@ -212,7 +220,6 @@ def _probe():
 
     sources = [
         ('GitHub 官方接口', GITHUB_API, _from_release),
-        ('GitHub 代理镜像', GITHUB_MIRROR, _from_release),
         ('jsDelivr CDN', JSDELIVR, _from_manifest),
         ('jsDelivr 备用节点', JSDELIVR_GCORE, _from_manifest),
         ('jsDelivr 国内节点', JSDELIVR_CN, _from_manifest),

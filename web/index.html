@@ -1676,8 +1676,15 @@ function renderUpdate(res) {
     lb.textContent = '下载地址';
     alt.appendChild(lb);
     if (latest.apkUrl) alt.appendChild(mkLink('GitHub 直链 · github.com', latest.apkUrl));
-    (latest.mirrors || []).forEach((m, i) => alt.appendChild(mkLink('镜像 ' + (i + 1) + ' · ' + hostOf(m), m)));
+    (latest.mirrors || []).forEach((m, i) => alt.appendChild(mkLink('加速节点 ' + (i + 1) + ' · ' + hostOf(m), m)));
     alt.appendChild(mkLink('项目主页 · 全部版本与反馈', latest.releaseUrl || REPO_HOME));
+    /* 网络限制是客观存在的：这里不承诺「点了一定能下」，而是给出可执行的退路。
+       之前放过第三方代理镜像，实测会被劫持跳转到无关站点，已全部移除。 */
+    const tip2 = document.createElement('div');
+    tip2.className = 'hint';
+    tip2.style.marginTop = '8px';
+    tip2.textContent = '以上地址在部分网络下可能打不开。若都失败，把 GitHub 直链复制到电脑上下载，再传回手机安装。';
+    alt.appendChild(tip2);
     if (latest.sha256) {
       const lb2 = document.createElement('div');
       lb2.className = 'lb';
