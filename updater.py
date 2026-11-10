@@ -102,6 +102,7 @@ def _summarize(body):
     ls = body.split('\n')
     out = []
     in_code = False
+    pending_head = None      # 小标题先存着，等它下面真有内容再输出
 
     for i, raw in enumerate(ls):
         t = raw.strip()
@@ -120,17 +121,21 @@ def _summarize(body):
             cells = [c.strip() for c in t.strip('|').split('|') if c.strip()]
             t = '· ' + ' → '.join(cells)
         elif t.startswith('### '):
-            t = t[4:]
-            if out:
-                out.append('')                 # 小标题前空一行
+            pending_head = t[4:].strip()
+            continue
         elif t.startswith('## '):
-            t = t[3:]
-            if out:
-                out.append('')
+            pending_head = t[3:].strip()
+            continue
         elif t.startswith('- ') or t.startswith('* '):
             t = '· ' + t[2:]
         elif t.startswith('> '):
             t = t[2:]
+
+        if pending_head is not None:
+            if out:
+                out.append('')                 # 小标题前空一行
+            out.append(pending_head)
+            pending_head = None
 
         t = t.replace('**', '').replace('`', '')
         out.append(t)
