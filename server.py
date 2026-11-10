@@ -126,6 +126,24 @@ class NotLoggedIn(Exception):
     pass
 
 
+def _check_login_fields(cfg):
+    """登录后必填的四个字段。
+
+    缺 token / customerCode 是登录本身没成功；
+    缺 customerid（一卡通客户号）或 outid（学号）说明这个手机号在官方那边
+    还没绑过校园卡 —— 这是两回事，要分开提示，否则用户不知道该去做什么。
+    """
+    if not (cfg.get('token') and cfg.get('customerCode')):
+        # 登录本身没成功（或压根没登录）——就是「还没登录」
+        raise NotLoggedIn('还没有登录，请用手机号登录')
+    # 登录成功了，但缺一卡通客户号或学号 = 官方那边这个号还没绑校园卡
+    if not (cfg.get('customerid') and cfg.get('outid')):
+        raise NotLoggedIn(
+            '这个账号还没绑定校园卡。请先用微信小程序「完美校园」绑定校园卡'
+            '（微信搜「完美校园」小程序 → 选学校 → 首页点「绑定校园卡」），'
+            '或装官方 App 绑定后再回来登录。')
+
+
 def get_session(handler=None, force=False):
     """取当前请求可用的会话。
 
@@ -140,9 +158,7 @@ def get_session(handler=None, force=False):
 
     global _session
     with _lock:
-        missing = [k for k in ('token', 'customerCode', 'customerid', 'outid') if not _config.get(k)]
-        if missing:
-            raise NotLoggedIn('还没有登录，请用手机号登录')
+        _check_login_fields(_config)
         if _session is None or force:
             _session = vwater.Session(_config)
             _session.entrance()
@@ -220,9 +236,7 @@ class Handler(BaseHTTPRequestHandler):
         if not st:
             raise NotLoggedIn('还没有登录，请用手机号登录')
         cfg = dict(st.get('c') or {})
-        missing = [k for k in ('token', 'customerCode', 'customerid', 'outid') if not cfg.get(k)]
-        if missing:
-            raise NotLoggedIn('还没有登录，请用手机号登录')
+        _check_login_fields(cfg)
         s = vwater.Session(cfg)
         s.uuid = st.get('u')
         s.page = st.get('p') or ''
@@ -539,6 +553,8 @@ def _public_config(cfg=None):
         'school': cfg.get('school'),
         'customerCode': cfg.get('customerCode'),
         'hasToken': bool(cfg.get('token')),
+        # 缺一卡通客户号或学号 = 官方那边还没绑校园卡，前端据此给绑定指引
+        'needCard': not (cfg.get('customerid') and cfg.get('outid')),
     }
 
 
