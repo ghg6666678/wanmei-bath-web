@@ -14,12 +14,14 @@
   --bg:#f4f6fb; --card:#fff; --ink:#101828; --ink2:#667085; --ink3:#98a2b3;
   --line:#eaecf0; --brand:#2563eb; --brand2:#38bdf8; --ok:#12b76a; --warn:#f79009; --danger:#f04438;
   --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px -12px rgba(16,24,40,.18);
+  --code-bg:rgba(16,24,40,.06);
   --r:18px;
 }
 @media (prefers-color-scheme:dark){
   :root{ --bg:#0b1220; --card:#141b2d; --ink:#f2f5fa; --ink2:#98a4b8; --ink3:#6b7891;
     --line:#212b42; --brand:#4f8dff; --brand2:#2dd4bf;
-    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px -16px rgba(0,0,0,.8); }
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px -16px rgba(0,0,0,.8);
+    --code-bg:rgba(255,255,255,.07); }
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
@@ -296,10 +298,32 @@ input[type=tel]::placeholder{color:var(--ink3)}
 .updstate.bad{background:rgba(247,144,9,.13);border-color:rgba(247,144,9,.45);color:#b54708}
 .updstate .spin{width:16px;height:16px;border-width:2px;border-color:rgba(37,99,235,.25);
   border-top-color:var(--brand);flex:none;margin-top:2px}
-.updnotes{font-size:12.5px;line-height:1.75;color:var(--ink2);white-space:pre-line;margin-top:12px;
+.updnotes{font-size:12.5px;line-height:1.75;color:var(--ink2);margin-top:12px;
   padding:12px 13px;border-radius:12px;background:rgba(16,24,40,.04);
   /* 日志改成完整显示后内容会变长，这里限高滚动，弹层本身不被撑爆 */
   max-height:30vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+/* Markdown 渲染出来的元素样式 */
+.updnotes h2,.updnotes h3,.updnotes h4{color:var(--ink);font-weight:700;margin:14px 0 6px}
+.updnotes h2{font-size:14.5px}
+.updnotes h3{font-size:13.5px}
+.updnotes h4{font-size:13px;color:var(--ink2)}
+.updnotes h2:first-child,.updnotes h3:first-child{margin-top:0}
+.updnotes p{margin:0 0 8px}
+.updnotes ul,.updnotes ol{margin:0 0 9px;padding-left:19px}
+.updnotes li{margin:3px 0}
+.updnotes code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;
+  background:var(--code-bg);padding:1.5px 5px;border-radius:5px}
+.updnotes pre{background:var(--code-bg);padding:10px 12px;border-radius:10px;overflow-x:auto;
+  font-size:11.5px;line-height:1.6;margin:0 0 9px;border:1px solid var(--line)}
+.updnotes pre code{background:none;padding:0;font-size:11.5px}
+.updnotes table{border-collapse:collapse;width:100%;font-size:12px;margin:0 0 10px;
+  display:block;overflow-x:auto}
+.updnotes th,.updnotes td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.updnotes th{background:var(--code-bg);font-weight:700;color:var(--ink);white-space:nowrap}
+.updnotes blockquote{margin:0 0 9px;padding:7px 11px;border-left:3px solid var(--brand);
+  background:rgba(37,99,235,.07);color:var(--ink2)}
+.updnotes a{color:var(--brand);text-decoration:none;word-break:break-all}
+.updnotes hr{border:0;border-top:1px solid var(--line);margin:13px 0}
 .updalt{margin-top:14px;font-size:12px;color:var(--ink3);line-height:2}
 .updalt .lb{color:var(--ink2);font-weight:700;margin-top:8px}
 .updalt a{display:block;margin-top:1px}
@@ -1886,6 +1910,140 @@ function downloadApk(latest) {
   openExternal(url);
 }
 
+/* ---------- 精简 Markdown 渲染 ----------
+   发布说明本来就是 Markdown 原文。与其降级成纯文本（表格变成一排竖线、
+   代码块直接丢、强调号露出来），不如直接渲染。
+
+   安全策略：先把整段文本做 HTML 转义，再在转义后的文本上替换标记。
+   所以正文里的 < > & 不可能变成标签；链接只放行 http/https，挡掉 javascript:。
+   支持：标题、粗体、斜体、行内代码、代码块、无序/有序列表、表格、引用、链接、水平线。 */
+function mdEscape(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* 行内标记。顺序有讲究：先把行内代码挖出来存好，
+   免得代码里的 * 被当成斜体标记。 */
+function mdInline(s) {
+  const codes = [];
+  s = s.replace(/`([^`]+)`/g, function (_, c) {
+    codes.push(c);
+    return '\u0000' + (codes.length - 1) + '\u0000';
+  });
+  /* 只匹配 http/https 开头的链接；其它形态（比如 javascript:）原样保留，
+     免得正则只吃掉一半、留下「)}」这种残渣。 */
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, function (_, txt, url) {
+    return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + txt + '</a>';
+  });
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  return s.replace(/\u0000(\d+)\u0000/g, function (_, i) {
+    return '<code>' + codes[+i] + '</code>';
+  });
+}
+
+function mdRow(line) {
+  return line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+}
+
+function mdIsBlock(t) {
+  return /^#{1,6}\s/.test(t) || /^([-*+]|\d+\.)\s+/.test(t) ||
+         t.startsWith('|') || t.startsWith('&gt;') || t.startsWith('```') ||
+         /^(-{3,}|\*{3,}|_{3,})$/.test(t);
+}
+
+function renderMarkdown(md) {
+  const lines = mdEscape(md || '').split('\n');
+  const out = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const t = lines[i].trim();
+
+    /* 代码块 */
+    if (t.startsWith('```')) {
+      const lang = t.slice(3).trim().replace(/[^A-Za-z0-9_+-]/g, '');
+      const buf = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith('```')) { buf.push(lines[i]); i++; }
+      i++;                                     // 跳过结束围栏
+      out.push('<pre><code' + (lang ? ' class="lang-' + lang + '"' : '') + '>' +
+               buf.join('\n') + '</code></pre>');
+      continue;
+    }
+
+    /* 标题：# 映射成 h2、## 映射成 h3，弹层里用不上 h1 */
+    let m = t.match(/^(#{1,6})\s+(.*)$/);
+    if (m) {
+      const lv = Math.min(6, m[1].length + 1);
+      out.push('<h' + lv + '>' + mdInline(m[2]) + '</h' + lv + '>');
+      i++;
+      continue;
+    }
+
+    /* 水平线 */
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(t)) { out.push('<hr>'); i++; continue; }
+
+    /* 表格：本行是 |…| 且下一行是分隔行 */
+    if (t.startsWith('|') && i + 1 < lines.length &&
+        /^\|[\s:|-]+\|?$/.test(lines[i + 1].trim())) {
+      const head = mdRow(t);
+      i += 2;
+      const rows = [];
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        rows.push(mdRow(lines[i].trim()));
+        i++;
+      }
+      out.push('<table><thead><tr>' +
+        head.map(h => '<th>' + mdInline(h) + '</th>').join('') +
+        '</tr></thead><tbody>' +
+        rows.map(r => '<tr>' + r.map(c => '<td>' + mdInline(c) + '</td>').join('') + '</tr>').join('') +
+        '</tbody></table>');
+      continue;
+    }
+
+    /* 引用 */
+    if (t.startsWith('&gt;')) {
+      const buf = [];
+      while (i < lines.length && lines[i].trim().startsWith('&gt;')) {
+        buf.push(lines[i].trim().replace(/^&gt;\s?/, ''));
+        i++;
+      }
+      out.push('<blockquote>' + mdInline(buf.join(' ')) + '</blockquote>');
+      continue;
+    }
+
+    /* 列表 */
+    if (/^([-*+]|\d+\.)\s+/.test(t)) {
+      const ordered = /^\d+\./.test(t);
+      const items = [];
+      while (i < lines.length && /^([-*+]|\d+\.)\s+/.test(lines[i].trim())) {
+        items.push(lines[i].trim().replace(/^([-*+]|\d+\.)\s+/, ''));
+        i++;
+      }
+      const tag = ordered ? 'ol' : 'ul';
+      out.push('<' + tag + '>' +
+        items.map(x => '<li>' + mdInline(x) + '</li>').join('') +
+        '</' + tag + '>');
+      continue;
+    }
+
+    /* 空行 */
+    if (!t) { i++; continue; }
+
+    /* 段落：连续普通行合并 */
+    const buf = [];
+    while (i < lines.length && lines[i].trim() && !mdIsBlock(lines[i].trim())) {
+      buf.push(lines[i].trim());
+      i++;
+    }
+    if (buf.length) out.push('<p>' + mdInline(buf.join(' ')) + '</p>');
+    else i++;                                  /* 防止死循环 */
+  }
+
+  return out.join('');
+}
+
 function renderUpdate(res) {
   const cur = (res.current && res.current.version) || state.appVersion || APP_VERSION;
   const curCode = res.current && res.current.versionCode;
@@ -1934,7 +2092,14 @@ function renderUpdate(res) {
     tip.textContent = '';
   }
 
-  if (latest.notes) { notes.textContent = latest.notes; notes.style.display = ''; }
+  /* notesMd 是完整的 Markdown 原文，直接渲染；只有旧版服务端/内置清单才退回纯文本 */
+  if (latest.notesMd) {
+    notes.innerHTML = renderMarkdown(latest.notesMd);
+    notes.style.display = '';
+  } else if (latest.notes) {
+    notes.textContent = latest.notes;
+    notes.style.display = '';
+  }
 
   /* 原生层已经逐个试过下载地址（只取 1 字节），这里以实测结果为准。
      downloads 缺失时（旧版本服务端 / 内置清单）退回原来的列表。 */

@@ -1,11 +1,11 @@
 {
-  "version": "1.1.2",
-  "versionCode": 9,
-  "publishedAt": "2026-11-10T06:10:00Z",
-  "notes": "修复「更新日志显示不全」：以前只显示 4 行、每行 70 字，撞到下一个小标题就停\n现在跳过代码块、保留小标题与列表、表格转成「问题 → 现状」，按 3000 字符封顶\n日志区可滚动，能看到全部条目；超过上限时才提示已截断\n其余功能与 1.1.1 一致",
-  "apkName": "zhishui-1.1.2.apk",
+  "version": "1.1.3",
+  "versionCode": 10,
+  "publishedAt": "2026-11-10T06:30:00Z",
+  "notes": "更新日志改为直接按 Markdown 渲染：表格是真表格、代码块有底色、标题分层、链接可点\n渲染器先做 HTML 转义再替换标记，链接只放行 http/https\n顺手修掉：小节下面没内容时不再输出那个标题\n其余功能与 1.1.2 一致",
+  "apkName": "zhishui-1.1.3.apk",
   "mirrors": [
-    "https://cdn.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@v1.1.2/release/zhishui-1.1.2.apk",
-    "https://gcore.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@v1.1.2/release/zhishui-1.1.2.apk"
+    "https://cdn.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@v1.1.3/release/zhishui-1.1.3.apk",
+    "https://gcore.jsdelivr.net/gh/ghg6666678/wanmei-bath-android@v1.1.3/release/zhishui-1.1.3.apk"
   ]
 }
