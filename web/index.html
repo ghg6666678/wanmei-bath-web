@@ -1599,16 +1599,26 @@ function mkLink(label, url) {
   return a;
 }
 
+/* 选下载地址：优先用实测通过的第一个，别让用户点一个已知下不动的链接。
+   原生层在检查更新时已经把每个地址都试过（只取 1 字节），结果在 downloads 里。 */
+function pickDownload(latest) {
+  const list = Array.isArray(latest.downloads) ? latest.downloads : [];
+  const ok = list.filter(d => d && d.ok && d.url);
+  return ok.length ? ok[0].url : (latest.apkUrl || '');
+}
+
 function downloadApk(latest) {
   const nat = __native();
   const name = latest.apkName || ('zhishui-' + latest.version + '.apk');
+  const url = pickDownload(latest);
+  if (!url) { toast('没有可用的下载地址', true); return; }
   if (nat && nat.downloadApk) {
-    nativeCall('downloadApk', latest.apkUrl, name)
+    nativeCall('downloadApk', url, name)
       .then(j => toast(j.message || '已加入下载队列'))
       .catch(e => toast(e.message || '下载失败，换个下载源试试', true));
     return;
   }
-  openExternal(latest.apkUrl);
+  openExternal(url);
 }
 
 function renderUpdate(res) {
@@ -1661,10 +1671,21 @@ function renderUpdate(res) {
 
   if (latest.notes) { notes.textContent = latest.notes; notes.style.display = ''; }
 
+  /* 原生层已经逐个试过下载地址（只取 1 字节），这里以实测结果为准。
+     downloads 缺失时（旧版本服务端 / 内置清单）退回原来的列表。 */
+  const dlList = (Array.isArray(latest.downloads) && latest.downloads.length) ? latest.downloads : null;
+  const dlOk = dlList ? dlList.filter(d => d && d.ok && d.url) : null;
+  const allDead = !!(dlList && dlList.length && dlOk.length === 0);
+
   btns.innerHTML = '';
   if (!isApp) {
     btns.appendChild(mkBtn('刷新页面', true, () => location.reload()));
     if (latest.apkUrl) btns.appendChild(mkBtn('下载 Android 版', false, () => downloadApk(latest)));
+  } else if (hasNew && latest.apkUrl && allDead) {
+    /* 实测每个地址都连不上：不给「下载」按钮，免得点了必然失败。
+       改成复制直链，让用户拿去电脑上下。 */
+    btns.appendChild(mkBtn('复制下载链接', true, () => copyText(latest.apkUrl)));
+    btns.appendChild(mkBtn('用浏览器打开', false, () => openExternal(latest.releaseUrl || REPO_HOME)));
   } else if (hasNew && latest.apkUrl) {
     btns.appendChild(mkBtn('下载新版 APK', true, () => downloadApk(latest)));
     btns.appendChild(mkBtn('用浏览器打开', false, () => openExternal(latest.releaseUrl || REPO_HOME)));
@@ -1678,15 +1699,29 @@ function renderUpdate(res) {
     lb.className = 'lb';
     lb.textContent = '下载地址';
     alt.appendChild(lb);
-    if (latest.apkUrl) alt.appendChild(mkLink('GitHub 直链 · github.com', latest.apkUrl));
-    (latest.mirrors || []).forEach((m, i) => alt.appendChild(mkLink('加速节点 ' + (i + 1) + ' · ' + hostOf(m), m)));
+    const dlLabel = d => (d.kind === 'github'
+      ? 'GitHub 直链 · github.com'
+      : '加速节点 · ' + hostOf(d.url));
+    if (dlOk && dlOk.length) {
+      dlOk.forEach(d => alt.appendChild(mkLink(dlLabel(d), d.url)));
+    } else if (dlList) {
+      dlList.forEach(d => alt.appendChild(mkLink(dlLabel(d) + '（未连通）', d.url)));
+    } else {
+      /* 没有实测数据（旧缓存 / 内置清单），保持原来的列法 */
+      if (latest.apkUrl) alt.appendChild(mkLink('GitHub 直链 · github.com', latest.apkUrl));
+      (latest.mirrors || []).forEach(m => alt.appendChild(mkLink('加速节点 · ' + hostOf(m), m)));
+    }
     alt.appendChild(mkLink('项目主页 · 全部版本与反馈', latest.releaseUrl || REPO_HOME));
     /* 网络限制是客观存在的：这里不承诺「点了一定能下」，而是给出可执行的退路。
        之前放过第三方代理镜像，实测会被劫持跳转到无关站点，已全部移除。 */
     const tip2 = document.createElement('div');
     tip2.className = 'hint';
     tip2.style.marginTop = '8px';
-    tip2.textContent = '以上地址在部分网络下可能打不开。若都失败，把 GitHub 直链复制到电脑上下载，再传回手机安装。';
+    tip2.textContent = allDead
+      ? '这个网络下所有下载地址都连不上（已逐个实测）。请把上面的 GitHub 直链复制到电脑上下载，再传回手机安装。'
+      : (dlOk && dlOk.length
+          ? '地址已逐个实测，下面的都能直接打开。'
+          : '以上地址在部分网络下可能打不开。若都失败，把 GitHub 直链复制到电脑上下载，再传回手机安装。');
     alt.appendChild(tip2);
     if (latest.sha256) {
       const lb2 = document.createElement('div');

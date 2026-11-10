@@ -141,6 +141,56 @@ def _with_download(latest):
     return latest
 
 
+# ---------------- 下载地址实测 ----------------
+
+def _probe_one(url, timeout=2.5):
+    """取 1 个字节验证地址可用性；200/206 都算通。"""
+    try:
+        req = urllib.request.Request(url, method='GET')
+        req.add_header('Range', 'bytes=0-0')
+        req.add_header('User-Agent', 'BathHelper/1.0 (Server)')
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status in (200, 206)
+    except Exception:
+        return False
+
+
+def _attach_downloads(latest):
+    """逐个试下载地址，把结果写进 downloads（url / ok / ms）。
+
+    为什么要做：地址能不能打开完全取决于用户所在网络，列一排让用户自己试，
+    常常是点了才发现下不动。先替他把这一步做掉。
+    """
+    urls = []
+    if latest.get('apkUrl'):
+        urls.append(latest['apkUrl'])
+    for m in (latest.get('mirrors') or []):
+        if m and m not in urls:
+            urls.append(m)
+    if not urls:
+        return latest
+
+    got = {}
+
+    def work(u):
+        t0 = time.time()
+        got[u] = (_probe_one(u), int((time.time() - t0) * 1000))
+
+    threads = [threading.Thread(target=work, args=(u,), daemon=True) for u in urls]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(3.2)
+
+    out = []
+    for i, u in enumerate(urls):
+        ok, ms = got.get(u, (False, 0))
+        out.append({'url': u, 'ok': ok, 'ms': ms,
+                    'kind': 'github' if (i == 0 and latest.get('apkUrl')) else 'cdn'})
+    latest['downloads'] = out
+    return latest
+
+
 # ---------------- 各通道的解析 ----------------
 
 def _from_release(d):
@@ -309,6 +359,8 @@ def get_version_info(force=False):
                 }
 
     latest = _with_download(latest)
+    # 实测下载地址：结果跟着版本信息一起缓存，30 分钟内不重复探测
+    latest = _attach_downloads(latest)
     result = {
         'ok': True,
         'current': {'version': WEB_VERSION, 'versionCode': 0},
