@@ -185,6 +185,28 @@ input:focus{border-color:var(--brand)}
 .picklist button{padding:12px 0;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);
   color:var(--ink);font-size:14px;font-weight:600;font-family:inherit}
 .picklist button.on{border-color:var(--brand);color:var(--brand);background:rgba(37,99,235,.08)}
+/* 年月滚轮：对应原版 van-datetime-picker type="year-month"。
+   两列上下吸附、中间一条选中带，上下用渐变做远近视差。 */
+.wheelwrap{position:relative;display:flex;justify-content:center;gap:4px;height:220px;margin:6px -4px 0;overflow:hidden}
+.wheelwrap::before,.wheelwrap::after{content:'';position:absolute;left:0;right:0;height:66px;z-index:2;pointer-events:none}
+.wheelwrap::before{top:0;background:linear-gradient(var(--card),transparent)}
+.wheelwrap::after{bottom:0;background:linear-gradient(transparent,var(--card))}
+.wheelband{position:absolute;left:50%;transform:translateX(-50%);width:232px;top:88px;height:44px;z-index:1;pointer-events:none;
+  border-radius:12px;background:rgba(37,99,235,.07);
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.wheelcol{flex:1 1 0;min-width:0;max-width:110px;overflow-y:auto;overflow-x:hidden;
+  scroll-snap-type:y mandatory;scrollbar-width:none;-ms-overflow-style:none;
+  padding:88px 0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.wheelcol::-webkit-scrollbar{width:0;height:0;display:none}
+.wheelcol .it{height:44px;display:flex;align-items:center;justify-content:center;
+  scroll-snap-align:center;font-size:17px;color:var(--ink3);white-space:nowrap;
+  transition:color .16s,font-size .16s}
+.wheelcol .it.on{color:var(--ink);font-weight:700;font-size:20px}
+.wheelbar{display:flex;align-items:center;justify-content:space-between;margin:2px 0 0}
+.wheelbar span{font-size:15px;font-weight:650;color:var(--ink)}
+.wheelbar button{background:none;border:0;font:inherit;font-size:14.5px;padding:9px 6px;cursor:pointer}
+#wheelCancel{color:var(--ink2)}
+#wheelOk{color:var(--brand);font-weight:700}
 /* 消费限制：滑块 + 文本框联动 */
 .rgval{text-align:center;margin:4px 0 0;font-size:36px;font-weight:800;color:var(--brand);
   font-variant-numeric:tabular-nums;letter-spacing:-1px;line-height:1.2}
@@ -455,6 +477,21 @@ input[type=tel]::placeholder{color:var(--ink3)}
   <h3 id="pickTitle">选择</h3>
   <div class="hint" id="pickHint"></div>
   <div class="picklist" id="pickList"></div>
+</div>
+
+<!-- 年月滚轮：对应原版的 van-datetime-picker type="year-month" -->
+<div class="sheet" id="wheelSheet">
+  <div class="bar-h"></div>
+  <div class="wheelbar">
+    <button id="wheelCancel">取消</button>
+    <span>选择月份</span>
+    <button id="wheelOk">确定</button>
+  </div>
+  <div class="wheelwrap">
+    <div class="wheelband"></div>
+    <div class="wheelcol" id="wheelYear"></div>
+    <div class="wheelcol" id="wheelMonth"></div>
+  </div>
 </div>
 
 <!-- 消费限时 / 限额：滑块 + 文本框联动 -->
@@ -1095,19 +1132,7 @@ window.addEventListener('scroll', () => {
 }, {passive: true});
 
 $('#recMonth').onclick = () => {
-  /* 范围跟原版一致：官方 H5 的月份选择器是 minDate=2020-01-01、maxDate=当前，
-     type=year-month。这里原来写死 6 个月，纯属自己加的，没有依据。
-     标签必须带年份——跨年之后「11 月」会出现好几次，分不清是哪个。 */
-  const opts = [];
-  const base = serverNow();
-  const stop = new Date(2020, 0, 1);
-  for (let d = new Date(base.getFullYear(), base.getMonth(), 1), guard = 0;
-       d >= stop && guard < 400;
-       d = new Date(d.getFullYear(), d.getMonth() - 1, 1), guard++) {
-    const v = monthStr(d);
-    opts.push({v: v, label: v});
-  }
-  openPicker('选择月份', '最早可查 2020 年 1 月', opts, recMonth, v => {
+  openMonthWheel(recMonth, v => {
     recMonth = v;
     rec.month = '';                 /* 换月份必须重来，不能复用旧列表 */
     loadRecords('reset');
@@ -1142,6 +1167,112 @@ function openPicker(title, hint, options, current, cb, cols) {
     if (on) on.scrollIntoView({block: 'center', inline: 'nearest'});
   });
 }
+
+/* ---------- 年月滚轮 ----------
+   原版用的是 van-datetime-picker type="year-month"：两列上下滚、中间一条选中带。
+   这里用同样的形态，实现靠 scroll-snap 吸附 + scroll 事件算最近项：
+     · 滑的时候立即高亮，不等停稳（跟手）；
+     · 停稳 90ms 后再做「年份变了重建月份」这种重活，避免拖动卡顿；
+     · 有些 WebView 的 scroll-snap 支持不完整，停稳后自己纠一次位置。
+   范围沿用原版：2020-01 至今。 */
+const WHEEL_H = 44;      /* 每项高度，必须与 CSS 的 .it 高度、.wheelcol 的 padding 对齐 */
+
+function wheelIndex(col) {
+  const n = col.children.length;
+  if (!n) return 0;
+  return Math.max(0, Math.min(Math.round(col.scrollTop / WHEEL_H), n - 1));
+}
+function wheelPaint(col, idx) {
+  for (let i = 0; i < col.children.length; i++) {
+    col.children[i].classList.toggle('on', i === idx);
+  }
+}
+function wheelFill(col, vals, fmt) {
+  col.innerHTML = vals.map(v => '<div class="it" data-v="' + v + '">' + fmt(v) + '</div>').join('');
+}
+function wheelGoto(col, idx, smooth) {
+  col.scrollTo({top: idx * WHEEL_H, behavior: smooth ? 'smooth' : 'auto'});
+  wheelPaint(col, idx);
+}
+
+let wheelYears = [];
+let wheelSel = {y: 0, m: 0};
+let wheelCb = null;
+
+/* 当前年份可选到几月：未来月份不能选 */
+function wheelMonthsOf(y) {
+  const base = serverNow();
+  const max = (y === base.getFullYear()) ? base.getMonth() + 1 : 12;
+  const out = [];
+  for (let m = 1; m <= max; m++) out.push(m);
+  return out;
+}
+
+/* 重建月份列，尽量停在 want 上（超出范围就夹到最后一个） */
+function wheelRefillMonths(y, want) {
+  const col = $('#wheelMonth');
+  const ms = wheelMonthsOf(y);
+  wheelFill(col, ms, m => m + '月');
+  const m = Math.min(want || wheelSel.m || 1, ms[ms.length - 1]);
+  const idx = Math.max(0, ms.indexOf(m));
+  requestAnimationFrame(() => wheelGoto(col, idx, false));
+  return ms[idx];
+}
+
+function wheelBind(col, onSettle) {
+  col.addEventListener('scroll', () => {
+    const i = wheelIndex(col);
+    wheelPaint(col, i);                        /* 滑动中就跟手高亮 */
+    clearTimeout(col._snapT);
+    col._snapT = setTimeout(() => {
+      if (Math.abs(col.scrollTop - i * WHEEL_H) > 2) wheelGoto(col, i, true);
+      if (onSettle) onSettle(i);
+    }, 90);
+  }, {passive: true});
+}
+
+function openMonthWheel(current, cb) {
+  wheelCb = cb;
+  const base = serverNow();
+  const parts = String(current || '').split('-');
+  const y0 = parseInt(parts[0], 10) || base.getFullYear();
+  const m0 = parseInt(parts[1], 10) || (base.getMonth() + 1);
+  wheelSel = {y: y0, m: m0};
+
+  wheelYears = [];
+  for (let y = base.getFullYear(); y >= 2020; y--) wheelYears.push(y);
+
+  showSheet('#wheelSheet');
+  /* 等弹层参与布局后再填充与定位——隐藏状态下 scrollHeight 是 0，滚不到位 */
+  requestAnimationFrame(() => {
+    const cy = $('#wheelYear');
+    wheelFill(cy, wheelYears, y => y + '年');
+    wheelGoto(cy, Math.max(0, wheelYears.indexOf(y0)), false);
+    wheelRefillMonths(y0, m0);
+  });
+}
+
+wheelBind($('#wheelYear'), () => {
+  const y = wheelYears[wheelIndex($('#wheelYear'))];
+  if (!y || y === wheelSel.y) return;
+  wheelSel.y = y;
+  wheelSel.m = wheelRefillMonths(y, wheelSel.m);
+});
+wheelBind($('#wheelMonth'), () => {
+  const ms = wheelMonthsOf(wheelSel.y);
+  const m = ms[wheelIndex($('#wheelMonth'))];
+  if (m) wheelSel.m = m;
+});
+
+$('#wheelCancel').onclick = () => hideSheet();
+$('#wheelOk').onclick = () => {
+  const y = wheelYears[wheelIndex($('#wheelYear'))];
+  if (!y) { hideSheet(); return; }
+  const ms = wheelMonthsOf(y);
+  const m = ms[wheelIndex($('#wheelMonth'))];
+  hideSheet();
+  if (m && wheelCb) wheelCb(y + '-' + pad(m));
+};
 
 function hostSheetHint() {}
 
