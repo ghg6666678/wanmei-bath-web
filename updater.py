@@ -50,11 +50,13 @@ STALE_TTL = 7 * 24 * 3600  # 磁盘缓存里超过 7 天就不再用
 
 # 下载加速：只走 jsDelivr 这类有企业背书的 CDN。APK 同时提交到仓库 release/ 目录，
 # 并用版本 tag 固定路径，这样拿到的就是这一版，不受分支缓存影响。
-# 文件名里带版本号，每版路径都是新的，所以分支缓存不会让用户拿到旧文件。
+# 用版本 tag 定位，而不是 @main：jsDelivr 对分支快照有 12 小时解析缓存，
+# 刚发版时 @main 可能还指向旧提交（404 或返回上一版文件）；tag 是全新引用，立刻可用。
+# 因此发版顺序必须是「提交 APK → 打 tag → 发 Release」。
 CDNS = [
-    'https://cdn.jsdelivr.net/gh/%s@main/release/%s',
-    'https://gcore.jsdelivr.net/gh/%s@main/release/%s',
-    'https://jsd.onmicrosoft.cn/gh/%s@main/release/%s',
+    'https://cdn.jsdelivr.net/gh/%s@v%s/release/%s',
+    'https://gcore.jsdelivr.net/gh/%s@v%s/release/%s',
+    'https://jsd.onmicrosoft.cn/gh/%s@v%s/release/%s',
 ]
 
 _lock = threading.Lock()
@@ -134,8 +136,8 @@ def _with_download(latest):
     if not latest.get('mirrors'):
         name = latest.get('apkName') or ''
         # 只有「仓库 release/ 目录里确实有这个文件」时才能拼 CDN 地址
-        if name:
-            latest['mirrors'] = [t % (REPO, name) for t in CDNS]
+        if ver and name:
+            latest['mirrors'] = [t % (REPO, ver, name) for t in CDNS]
     return latest
 
 
