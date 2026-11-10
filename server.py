@@ -1,18 +1,29 @@
 """洗澡助手后端 —— 完美校园「智慧用水·洗澡」精简客户端。
 
-零第三方依赖，只用标准库。启动：
+除 pycryptodome 外只用标准库（签名与 cookie 加密都靠它）。启动：
     python server.py [端口]
 默认 http://0.0.0.0:8770
+
+两种会话模式
+------------
+单人自用（默认）：票据落在 config.json，进程里维护一份 Session。简单、重启免登录，
+                  但只能一个人用——换人登录会覆盖前一个。
+无状态多用户：    设 BATH_STATELESS=1，票据加密后放进浏览器 cookie，服务端不保存任何
+                  用户数据、每个请求自带凭据，可以安全地给多个使用者用。
+                  说明见 docs/STATELESS.md。
 """
 import datetime
 import json
 import os
+import secrets
 import sys
 import threading
+import time
 import traceback
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import statebox
 import vwater
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -23,9 +34,16 @@ _lock = threading.Lock()
 _session = None
 _config = {}
 
-# 网页登录：sendCode 与 doLogin 必须复用同一个 WxLogin 实例（session 要一致）
-_wx_lock = threading.Lock()
-_wx = None
+# 无状态模式：开了才加载（否则不碰密钥文件）
+STATELESS = statebox.mode_enabled()
+BOX = statebox.box() if STATELESS else None
+
+# 登录握手：sendCode 与 doLogin 必须复用同一个 WxLogin 实例（session 要一致）。
+# 原来是一个全局变量，两个人同时登录会互相踩——这里改成按临时标识分开存。
+# 它只活在内存里、带 TTL、登录完成即丢，不落盘、不写日志。
+_pending_lock = threading.Lock()
+_PENDING = {}
+_PENDING_TTL = 300
 
 
 def _wx_new():
@@ -33,6 +51,40 @@ def _wx_new():
     w = wxlogin.WxLogin(host=wxlogin.HOSTS[0])
     w.exchange_secret()
     return w
+
+
+def _pending_put(sid, w):
+    now = time.time()
+    with _pending_lock:
+        for k in [k for k, v in _PENDING.items() if now - v[1] > _PENDING_TTL]:
+            _PENDING.pop(k, None)
+        _PENDING[sid] = (w, now)
+
+
+def _pending_get(sid):
+    if not sid:
+        return None
+    with _pending_lock:
+        item = _PENDING.get(sid)
+    if not item:
+        return None
+    w, ts = item
+    return w if time.time() - ts <= _PENDING_TTL else None
+
+
+def _pending_pop(sid):
+    with _pending_lock:
+        return _PENDING.pop(sid, None)
+
+
+def _pending_take(sid):
+    """取走并删除：登录用掉就作废，不能重复使用。"""
+    with _pending_lock:
+        item = _PENDING.pop(sid, None)
+    if not item:
+        return None
+    w, ts = item
+    return w if time.time() - ts <= _PENDING_TTL else None
 
 
 def _login_config(w, user, phone):
@@ -74,7 +126,18 @@ class NotLoggedIn(Exception):
     pass
 
 
-def get_session(force=False):
+def get_session(handler=None, force=False):
+    """取当前请求可用的会话。
+
+    单人模式：进程里一份，落盘在 config.json。
+    无状态模式：从请求自带的 cookie 解出来，每次重建——所以绝对不能有全局缓存，
+              否则就成了「一份凭据给所有人用」。
+    """
+    if STATELESS:
+        if handler is None:
+            raise RuntimeError('无状态模式下必须传 handler，会话从 cookie 取')
+        return handler.state_session(force)
+
     global _session
     with _lock:
         missing = [k for k in ('token', 'customerCode', 'customerid', 'outid') if not _config.get(k)]
@@ -101,45 +164,121 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', ctype)
         self.send_header('Content-Length', str(len(data)))
         self.send_header('Cache-Control', 'no-store')
+        for k, v in getattr(self, '_extra_headers', None) or []:
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(data)
 
     def _json(self, obj, code=200):
         self._send(code, obj)
 
+    # ---------- cookie 与会话状态（无状态模式）----------
+    def _hdr(self, name, value):
+        """追加响应头。懒初始化，避免在没设过 header 的分支里 AttributeError。"""
+        if getattr(self, '_extra_headers', None) is None:
+            self._extra_headers = []
+        self._extra_headers.append((name, value))
+
+    def _cookies(self):
+        return statebox.parse_cookies(self.headers.get('Cookie'))
+
+    def _state(self):
+        """解出浏览器带来的那坨密文。解不开就当没登录，不要抛 500。"""
+        raw = self._cookies().get(statebox.COOKIE)
+        if not raw:
+            return None
+        try:
+            return BOX.open(raw)
+        except statebox.StateError:
+            return None
+
+    def _save_state(self, cfg, uuid=None, page=''):
+        """把票据封进 cookie 交还浏览器——服务端不留副本。"""
+        blob = BOX.seal({'c': cfg, 'u': uuid, 'p': page or ''})
+        self._hdr('Set-Cookie',
+                  statebox.build_cookie(statebox.COOKIE, blob, max_age=7 * 24 * 3600))
+        self._cfg_cache = dict(cfg)
+
+    def _drop_state(self):
+        self._hdr('Set-Cookie', statebox.clear_cookie(statebox.COOKIE))
+        self._cfg_cache = {}
+
+    def current_cfg(self):
+        """当前请求对应的账号配置：无状态取 cookie，单人模式取全局。"""
+        if not STATELESS:
+            return _config
+        if getattr(self, '_cfg_cache', None) is not None:
+            return self._cfg_cache
+        st = self._state()
+        return dict(st.get('c') or {}) if st else {}
+
+    def state_session(self, force=False):
+        cached = getattr(self, '_sess', None)
+        if cached is not None and not force:
+            return cached
+        st = self._state()
+        if not st:
+            raise NotLoggedIn('还没有登录，请用手机号登录')
+        cfg = dict(st.get('c') or {})
+        missing = [k for k in ('token', 'customerCode', 'customerid', 'outid') if not cfg.get(k)]
+        if missing:
+            raise NotLoggedIn('还没有登录，请用手机号登录')
+        s = vwater.Session(cfg)
+        s.uuid = st.get('u')
+        s.page = st.get('p') or ''
+        if force or not s.uuid:
+            s.entrance()
+            # entrance 会刷掉 uuid/page，也可能回填服务端下发的 id，需要写回 cookie
+            self._save_state(s.cfg, s.uuid, s.page)
+        self._sess = s
+        return s
+
     # ---------- 网页端登录/退出：nativeCall 的浏览器回落 ----------
     def _native(self, body):
-        global _wx, _session
+        global _session
         name = str(body.get('name') or '').strip()
         args = body.get('args') or []
+        sid = self._cookies().get(statebox.PENDING_COOKIE) or ''
 
         if name == 'logout':
-            with _lock:
-                cfg = dict(_config)
-                for k in ('token', 'customerCode', 'customerid', 'outid',
-                          'name', 'school', 'mobile', 'phone'):
-                    cfg.pop(k, None)
-                save_config(cfg)
-                _session = None
-            with _wx_lock:
-                _wx = None
+            if STATELESS:
+                self._drop_state()
+            else:
+                with _lock:
+                    cfg = dict(_config)
+                    for k in ('token', 'customerCode', 'customerid', 'outid',
+                              'name', 'school', 'mobile', 'phone'):
+                        cfg.pop(k, None)
+                    save_config(cfg)
+                    _session = None
+            if sid:
+                _pending_pop(sid)
+            self._hdr('Set-Cookie', statebox.clear_cookie(statebox.PENDING_COOKIE))
             return {'ok': True, 'data': {}}
 
         if name == 'sendCode':
             phone = str(args[0]) if args else ''
             if len(phone) != 11 or not phone.isdigit():
                 return {'ok': False, 'error': '手机号格式不对'}
+            # 同一个浏览器重发验证码时复用握手会话，别每次重新换密钥
+            w = _pending_get(sid)
+            if w is None:
+                sid = secrets.token_hex(16)
+                try:
+                    w = _wx_new()
+                except Exception as e:
+                    return {'ok': False, 'error': '初始化登录失败: %s' % e}
             try:
-                with _wx_lock:
-                    if _wx is None:
-                        _wx = _wx_new()
-                    r = _wx.send_code(phone)
+                r = w.send_code(phone)
                 if str(r.get('code_')) != '0':
+                    _pending_pop(sid)
                     return {'ok': False, 'error': r.get('message_') or '验证码发送失败'}
+                _pending_put(sid, w)
+                self._hdr('Set-Cookie', statebox.build_cookie(
+                    statebox.PENDING_COOKIE, sid, max_age=_PENDING_TTL))
                 return {'ok': True, 'data': {}}
             except Exception as e:
-                with _wx_lock:
-                    _wx = None
+                _pending_pop(sid)
                 return {'ok': False, 'error': '发送失败: %s' % e}
 
         if name == 'doLogin':
@@ -147,18 +286,24 @@ class Handler(BaseHTTPRequestHandler):
             code = str(args[1]) if len(args) > 1 else ''
             if not phone or not code:
                 return {'ok': False, 'error': '缺少手机号或验证码'}
+            w = _pending_take(sid)      # 验证码是一次性的，用掉就不能再用
+            if w is None:
+                return {'ok': False, 'error': '登录会话已过期，请重新获取验证码'}
             try:
-                with _wx_lock:
-                    if _wx is None:
-                        _wx = _wx_new()
-                    user = _wx.login_sms(phone, code)
-                    cfg = dict(_config)
-                    cfg.update(_login_config(_wx, user, phone))
+                user = w.login_sms(phone, code)
+                cfg = dict(self.current_cfg())
+                cfg.update(_login_config(w, user, phone))
+                if STATELESS:
+                    self._save_state(cfg)
+                else:
                     save_config(cfg)
-                try:
-                    get_session(force=True)
-                except Exception:
-                    pass          # 票据已写入，下次请求会重建会话
+                    with _lock:
+                        _session = None
+                    try:
+                        get_session(force=True)      # 尽早发现问题，失败不影响已保存的票据
+                    except Exception:
+                        pass
+                self._hdr('Set-Cookie', statebox.clear_cookie(statebox.PENDING_COOKIE))
                 return {'ok': True, 'data': {}}
             except Exception as e:
                 return {'ok': False, 'error': '登录失败: %s' % e}
@@ -223,7 +368,7 @@ class Handler(BaseHTTPRequestHandler):
     # ---------- API ----------
     def api_get(self, p, q):
         if p == '/api/config':
-            return self._json({'ok': True, 'config': _public_config()})
+            return self._json({'ok': True, 'config': _public_config(self.current_cfg())})
 
         if p == '/api/version':
             # 检查更新：服务端代查 GitHub，多通道 + 本地清单 + 缓存兜底
@@ -231,13 +376,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(updater.get_version_info(force=q.get('force') == '1'))
 
         if p == '/api/time':
-            s = get_session()
+            s = get_session(self)
             now = vwater.server_now(s)
             return self._json({'ok': True, 'serverTime': now.strftime('%Y-%m-%d %H:%M:%S'),
                                'localTime': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
 
         if p == '/api/state':
-            s = get_session()
+            s = get_session(self)
             b = vwater.bathrooms(s)
             try:
                 bal = vwater.balance(s)
@@ -250,19 +395,19 @@ class Handler(BaseHTTPRequestHandler):
                        'max_time_limit': cur.get('max_time_limit')}
             except Exception:
                 pass
-            return self._json({'ok': True, 'config': _public_config(), 'balance': bal,
+            return self._json({'ok': True, 'config': _public_config(self.current_cfg()), 'balance': bal,
                                'orders': b['orders'], 'bathrooms': b['list'],
                                'serverTime': b['serverTime'], 'limits': lim,
                                'settings': lim})
 
         if p == '/api/records':
-            s = get_session()
+            s = get_session(self)
             r = vwater.records(s, month=q.get('month') or None,
                                page=int(q.get('page') or 1))
             return self._json({'ok': True, 'data': r.get('data')})
 
         if p == '/api/settings':
-            s = get_session()
+            s = get_session(self)
             lim = vwater.get_limit(s)
             return self._json({'ok': True, 'settings': {
                 'max_fare_limit': lim.get('max_fare_limit'),
@@ -276,17 +421,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(self._native(body))
 
         if p == '/api/config':
-            cfg = dict(_config)
+            cfg = dict(self.current_cfg())
             cfg.update({k: v for k, v in body.items() if v})
-            save_config(cfg)
+            if STATELESS:
+                # 手工填的 token 同样只交给浏览器保管，服务端不留
+                self._save_state(cfg)
+            else:
+                save_config(cfg)
             try:
-                get_session(force=True)
+                get_session(self, force=True)
             except Exception as e:
                 return self._json({'ok': False, 'error': '配置已保存，但登录态校验失败: %s' % e}, 200)
-            return self._json({'ok': True, 'config': _public_config()})
+            return self._json({'ok': True, 'config': _public_config(self.current_cfg())})
 
         if p == '/api/book':
-            s = get_session()
+            s = get_session(self)
             code = body.get('bathroomcode')
             dt = body.get('datetime')
             if not code or not dt:
@@ -337,7 +486,7 @@ class Handler(BaseHTTPRequestHandler):
                                'orderdatetime': data.get('orderdatetime') or dt})
 
         if p == '/api/cancel':
-            s = get_session()
+            s = get_session(self)
             orderno = body.get('orderno')
             if not orderno:
                 return self._json({'ok': False, 'error': '缺少 orderno'}, 400)
@@ -345,7 +494,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({'ok': ok, 'message': '已取消预约' if ok else '取消失败'})
 
         if p == '/api/settings':
-            s = get_session()
+            s = get_session(self)
             fare = body.get('fare')
             tmin = body.get('time')
             if fare is None or tmin is None:
@@ -379,14 +528,17 @@ def _server_dt(hhmmss):
     return now
 
 
-def _public_config():    return {
-        'name': _config.get('name'),
-        'phone': _config.get('mobile') or _config.get('phone'),
-        'mobile': _config.get('mobile') or _config.get('phone'),
-        'outid': _config.get('outid'),
-        'school': _config.get('school'),
-        'customerCode': _config.get('customerCode'),
-        'hasToken': bool(_config.get('token')),
+def _public_config(cfg=None):
+    """下发给前端的账号信息。过滤掉 token，只告诉它「有没有」。"""
+    cfg = _config if cfg is None else cfg
+    return {
+        'name': cfg.get('name'),
+        'phone': cfg.get('mobile') or cfg.get('phone'),
+        'mobile': cfg.get('mobile') or cfg.get('phone'),
+        'outid': cfg.get('outid'),
+        'school': cfg.get('school'),
+        'customerCode': cfg.get('customerCode'),
+        'hasToken': bool(cfg.get('token')),
     }
 
 
@@ -405,7 +557,11 @@ def _lan_ip():
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8770
     load_config()
-    if not _config.get('token'):
+    if STATELESS:
+        # 无状态模式下没有「本机登录态」这回事：每个请求自带凭据，启动时无从校验
+        print('✔ 无状态模式：票据由浏览器保管，服务端不保存任何账号数据')
+        print('  cookie 名称 %s，最大 7 天；换密钥后所有人需重新登录' % statebox.COOKIE)
+    elif not _config.get('token'):
         print('!! 未配置 token，请运行 python login.py，或在网页里用手机号登录')
     else:
         try:

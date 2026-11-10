@@ -14,3 +14,6 @@ venv/
 
 # 版本检查缓存（运行时生成）
 version_cache.json
+
+# 无状态模式的会话密钥（本地生成，绝不提交）
+state.key
