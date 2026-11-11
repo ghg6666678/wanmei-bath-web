@@ -516,7 +516,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
     小程序只有绑卡功能，没有「智慧用水」，所以绑完再回这个 App 登录。
   </div>
   <div style="display:flex;gap:9px;margin-top:16px">
-    <button class="btn ghost" style="flex:1;padding:14px" id="guideLater">稍后再说</button>
+    <button class="btn ghost" style="flex:1;padding:14px" id="guideWx">打开微信</button>
     <button class="btn" style="flex:1;padding:14px" id="guideOk">知道了</button>
   </div>
 </div>
@@ -2364,7 +2364,21 @@ if (!getFirstRunFlag()) {
   setTimeout(openGuide, 500);
 }
 $('#guideOk').onclick = closeGuide;
-$('#guideLater').onclick = closeGuide;
+/* 「打开微信」：App 里直接拉起微信去小程序绑卡。
+   不关弹层、也不写「已看过」——从小程序回来还得照着上面的步骤做，
+   关掉就看不见了；真正看完再点「知道了」。
+   浏览器里没有原生桥，拉不起微信，只给一句指引。 */
+$('#guideWx').onclick = () => {
+  const nat = __native();
+  if (!nat || !nat.openUrl) {
+    toast('请在微信中搜索小程序「完美校园」');
+    return;
+  }
+  nat.openUrl('weixin://');
+  setTimeout(() => {
+    if (!document.hidden) toast('未打开微信，请确认已安装', true);
+  }, 1500);
+};
 
 loadAll();
 // 3 分钟一次即可：太密会把这个账号的用水会话打挂（实测高频请求会触发保护）
