@@ -412,7 +412,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({'ok': True, 'config': _public_config(self.current_cfg()), 'balance': bal,
                                'orders': b['orders'], 'bathrooms': b['list'],
                                'serverTime': b['serverTime'], 'limits': lim,
-                               'settings': lim})
+                               'srvClock': vwater.server_clock(), 'settings': lim})
 
         if p == '/api/records':
             s = get_session(self)
@@ -540,6 +540,11 @@ def _server_dt(hhmmss):
         except Exception:
             pass
     return now
+
+
+# 官方服务器最近一次响应里的 Date 头（毫秒时间戳）以及记下它时的本机 time.time()。
+# Date 是 HTTP 强制响应头，不依赖官方给什么业务字段，是最稳的「服务器当前时刻」。
+# 记录动作在 vwater._call 里完成（每次官方请求都会带上这个头），这里只取快照。
 
 
 def _public_config(cfg=None):

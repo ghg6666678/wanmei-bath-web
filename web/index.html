@@ -648,6 +648,8 @@ window.__apiDone = function (id, json) {
 function __native() { return (typeof Android !== 'undefined') ? Android : null; }
 
 /* 统一走原生桥：原生在网络线程执行，完成后再回调，不卡界面 */
+/* 网页端：从响应头 Date 记下的服务器时刻（原生端由 Java 侧解析同一头） */
+let __srvClockMs = 0, __srvClockLocalMs = 0;
 function api(path, opt) {
   const o = opt || {};
   const method = (o.method || 'GET').toUpperCase();
@@ -658,7 +660,18 @@ function api(path, opt) {
        否则「登录态已失效」这类提示会被吞成通用的「返回解析失败」。 */
     return fetch(path, Object.assign({headers: {'Content-Type': 'application/json'}}, o))
       .catch(() => { throw new Error('网络请求失败'); })
-      .then(r => r.json().catch(() => { throw new Error('返回解析失败'); }))
+      .then(r => {
+        /* 顺手记下响应头里的 Date（HTTP 强制头），作为「服务器当前时刻」。
+           浏览器/原生 WebView 都能读到；拿它校准比等官方下发 nowdate 可靠。 */
+        try {
+          const dh = r.headers.get('Date');
+          if (dh) {
+            const ms = Date.parse(dh);
+            if (ms > 0) { __srvClockMs = ms; __srvClockLocalMs = Date.now(); }
+          }
+        } catch (e) { }
+        return r.json().catch(() => { throw new Error('返回解析失败'); });
+      })
       .then(j => { if (!j.ok && j.error) throw new Error(j.error); return j; });
   }
   return new Promise((resolve, reject) => {
@@ -1020,8 +1033,25 @@ async function loadAll() {
     state.orders = j.orders || [];
     state.rooms = j.bathrooms || [];
     state.settings = j.settings || j.limits || {};
-    // 用服务端 nowdate(HHMMSS) 校准
-    if (j.serverTime && j.serverTime.length >= 6) {
+    /* 校准优先级：
+       1) srvClock —— 原生侧从最近一次响应的 Date 头解析出的服务器时刻；
+          网页端在 api() 里读同一个头，走 __srvClockMs 这条路。
+       2) serverTime —— 官方下发的 nowdate(HHMMSS) 业务时间，
+          实测多数学校恒为空，只能当备选。 */
+    let srvNowMs = 0;
+    if (j.srvClock && j.srvClock.has && Number(j.srvClock.nowMs) > 0) {
+      srvNowMs = Number(j.srvClock.nowMs);
+    } else if (__srvClockMs > 0 && __srvClockLocalMs > 0) {
+      const el = Date.now() - __srvClockLocalMs;
+      if (el >= 0 && el < 86400000) srvNowMs = __srvClockMs + el;
+    }
+    if (srvNowMs > 0) {
+      state.serverOffset = srvNowMs - Date.now();
+      state.serverCalibrated = true;
+      const big = Math.abs(state.serverOffset) > 60000;
+      $('#srvTime').textContent = '服务器 ' + fmtClock(new Date(srvNowMs)) +
+                                  (big ? ' · 已自动校准' : '');
+    } else if (j.serverTime && j.serverTime.length >= 6) {
       const now = new Date();
       const srv = new Date(now);
       srv.setHours(+j.serverTime.slice(0, 2), +j.serverTime.slice(2, 4), +j.serverTime.slice(4, 6), 0);
@@ -1032,10 +1062,8 @@ async function loadAll() {
       const big = Math.abs(off) > 60000;
       $('#srvTime').textContent = '服务器 ' + fmtClock(srv) + (big ? ' · 已自动校准' : '');
     } else {
-      /* 拿不到服务端时间：不能假装和服务器对齐。serverOffset 保持 0，
-         失效倒计时会退回用本机时间算，各校时差不同，这个值可能偏
-         （本校区服务器慢 15 分钟，就会把失效时间显示晚 15 分钟）。
-         所以把状态说清楚，别让用户以为那就是服务端的判定。 */
+      /* 两条路都没走通（例如离线）：serverOffset 保持 0，
+         倒计时退回用本机时间算，界面如实说明。 */
       state.serverCalibrated = false;
       $('#srvTime').textContent = '服务器时间未知 · 按本机时间估算';
     }
@@ -1639,6 +1667,20 @@ let __loginPending = false;
 
 function showSheet(sel, locked) {
   const m = $('#mask'), sh = $(sel);
+  /* 已经在显示同一个弹层：不要重置动画，否则会再滑一次。
+     这条路径以前会出现在 login → guide 的原地切换上，
+     表现就是「弹了两次」。 */
+  if (sh.classList.contains('on') && m.classList.contains('on')) {
+    __sheetLocked = !!locked;
+    sh.classList.toggle('locked', __sheetLocked);
+    document.body.style.overflow = 'hidden';
+    return;
+  }
+  /* 换到另一个弹层：先把旧的摘掉（不关遮罩），避免两个同时带 .on
+     导致前一个的滑出动画和新一个的滑入叠在一起 */
+  document.querySelectorAll('.sheet.on').forEach(s => {
+    if (s !== sh) s.classList.remove('on');
+  });
   sh.style.removeProperty('--drag');
   sh.style.transition = '';
   m.style.removeProperty('opacity');
@@ -1881,15 +1923,19 @@ $('#lgSubmit').onclick = async () => {
   $('#lgWarn').style.display = 'none';
   try {
     await nativeCall('doLogin', phone, code);
-    hideSheet();
     $('#lgCode').value = '';
     await loadAll();
     /* state.cfg 是 loadAll 里刷新的，所以要在它之后判断：
-       登录成功了，但官方那边这个号还没绑校园卡 → 给出绑定指引。 */
+       登录成功了，但官方那边这个号还没绑校园卡 → 给出绑定指引。
+
+       注意这里【先不要】hideSheet()：原来是「关掉登录框 → 等 700ms →
+       再弹引导」，中间那 700ms 背景完全裸露，看起来就是弹了两次
+       （一次关、一次开）。现在登录框原地换成引导框，遮罩一直不断。 */
     if ((state.cfg || {}).needCard) {
       toast('登录成功，但账号还没绑校园卡');
-      setTimeout(openGuide, 700);
+      openGuide();
     } else {
+      hideSheet(true);
       toast('登录成功');
     }
   } catch (e) {
@@ -2376,8 +2422,10 @@ window.__onShow = function () {
 
 /* 首次启动：弹一次引导，说明校园卡怎么绑（不需要装官方 App 的那条路径）。
    标记存原生；浏览器端 localStorage 可能不可用，失败就当没标记过，下次还会弹。 */
+let __firstRunGuide = false;
 if (!getFirstRunFlag()) {
-  setTimeout(openGuide, 500);
+  __firstRunGuide = true;
+  openGuide();
 }
 $('#guideOk').onclick = closeGuide;
 /* 「打开微信」：App 里直接拉起微信去小程序绑卡。

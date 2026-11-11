@@ -19,6 +19,49 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 
 BASE = 'https://vwater.59wanmei.com/usewater'
+
+# 官方服务器最近一次响应里的 Date 头（毫秒时间戳 / 本机 time.time() / 来自哪个请求）。
+# Date 是 HTTP 强制响应头，不依赖官方给什么业务字段，是最稳的「服务器当前时刻」。
+_CLOCK = {'ms': 0, 'local': 0.0, 'from': ''}
+
+
+def _note_clock(headers, path=''):
+    """记下一次官方响应的 Date 头，供 /api/state 下发做时钟校准。"""
+    try:
+        raw = None
+        for k, v in headers.items():
+            if str(k).lower() == 'date':
+                raw = v
+                break
+        if not raw:
+            return
+        from email.utils import parsedate_to_datetime
+        dt = parsedate_to_datetime(raw)
+        if dt is None:
+            return
+        ms = int(dt.timestamp() * 1000)
+        if ms > 0:
+            _CLOCK['ms'] = ms
+            _CLOCK['local'] = time.time()
+            _CLOCK['from'] = path
+    except Exception:
+        pass
+
+
+def server_clock():
+    """服务器时钟快照：nowMs 已按「收到响应后流逝的时间」外推。
+
+    没有可用快照，或快照已经过期（超过一天，多半是本机时钟被改过）时返回 has=False。
+    """
+    ms, local = _CLOCK['ms'], _CLOCK['local']
+    if ms <= 0 or local <= 0:
+        return {'has': False, 'nowMs': 0, 'skewMs': 0, 'from': ''}
+    elapsed = time.time() - local
+    if elapsed < 0 or elapsed > 86400:
+        return {'has': False, 'nowMs': 0, 'skewMs': 0, 'from': ''}
+    return {'has': True, 'nowMs': ms + int(elapsed * 1000),
+            'skewMs': ms - int(local * 1000), 'from': _CLOCK['from']}
+
 UA = ('Mozilla/5.0 (Linux; Android 16; PJE110) AppleWebKit/537.36 (KHTML, like Gecko) '
       'Chrome/138.0.7204.179 Mobile Safari/537.36 wanxiao/5.8.36')
 H5_ORIGIN = 'https://xqh5.17wanxiao.com'
@@ -62,9 +105,13 @@ class Session:
             req.add_header(k, v)
         try:
             r = self.opener.open(req, timeout=25)
-            return r.status, dict(r.headers), r.read().decode('utf-8', 'ignore')
+            hdrs = dict(r.headers)
+            _note_clock(hdrs, path)
+            return r.status, hdrs, r.read().decode('utf-8', 'ignore')
         except urllib.error.HTTPError as e:
-            return e.code, dict(e.headers), e.read().decode('utf-8', 'ignore')
+            hdrs = dict(e.headers)
+            _note_clock(hdrs, path)
+            return e.code, hdrs, e.read().decode('utf-8', 'ignore')
         except Exception as e:
             raise VWaterError(f'网络异常: {e}')
 
