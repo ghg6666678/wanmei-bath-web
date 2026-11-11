@@ -1086,32 +1086,16 @@ function openBook(code) {
 
   const w = $('#bkWarn');
   const warns = [];
-  /* 快到服务端的日切点了：现在下单，验证码活不过一小时。
-     这条要说清楚「几点失效、还剩多久」，别只说「注意风险」——
-     含糊的提醒等于没提醒，用户不知道该改什么。
+  /* 快到服务端的日切点了：现在下单，验证码活不了多久。
+     只说「还能用几分钟」，不给绝对时刻——服务器零点和本地零点未必重合，
+     报一个「00:15」出来反而要额外解释它是今天还是明天。
      阈值按【剩余有效期】算而不是钟点：各校服务器零点相对现实的偏移
      不一样（有人慢十几分钟、有人快几分钟），写死「23 点后提醒」必然
      有的学校提醒太早、有的太晚。 */
   const remainMs = serverDayRemainMs();
-  if (remainMs > 0 && remainMs < 60 * 60000) {
-    /* 「还剩 N 分钟」和失效时刻必须自洽：两个都由同一个 N 推出来，
-       否则会出现「说还剩 30 分钟、却显示 00:14」这种看着像写错的组合。 */
+  if (remainMs > 0 && remainMs < 30 * 60000) {
     const mins = Math.max(1, Math.round(remainMs / 60000));
-    const exp = new Date(Date.now() + mins * 60000);
-    /* 服务器零点比本地零点晚时，失效点会落到「明天」。这时候只说
-       「只到 00:15 失效」会被读成今晚已经过去的那个 00:15 ——
-       所以跨日要说清是哪一天。 */
-    const now = new Date();
-    const crossDay = exp.getDate() !== now.getDate() || exp.getMonth() !== now.getMonth();
-    const when = (crossDay ? '明天 ' : '') + fmtClock(exp);
-    /* 失效点不在本地零点，就该说明偏差来源，否则那个时刻看着莫名。
-       偏差不到 1 分钟就不提，免得添噪音。 */
-    const skewMin = Math.round(Math.abs(state.serverOffset) / 60000);
-    const skew = skewMin >= 1
-      ? `学校服务器时间比你手机${state.serverOffset < 0 ? '慢' : '快'}约 ${skewMin} 分钟。`
-      : '';
-    warns.push(`<strong>这次预约的验证码只到 ${when} 失效（还剩 ${mins} 分钟）。</strong>`
-      + skew + '如果你打算过了这个点再去，可能就来不及了。');
+    warns.push(`<strong>这个验证码只能再用 ${mins} 分钟</strong>（学校服务器到零点就作废）。`);
   }
   warns.push(`本次限时 ${tmin} 分钟、限额 ${fare} 元，均从设备开阀后开始累计。`);
   if (state.balance !== null && Number(state.balance) <= 0) {
