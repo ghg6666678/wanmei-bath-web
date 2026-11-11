@@ -687,38 +687,36 @@ function nativeCall(name) {
   });
 }
 
-/* 验证码「当日有效」的失效时刻。
+/* 新预约的验证码能活多久 —— 也就是「离服务端当天 23:59:59 还有多久」。
  *
- * 服务端按它自己的日历日切验证码（过了服务端的 0 点订单就不返回了），
+ * 服务端按它自己的日历日切验证码（过了服务端的 0 点订单就不再返回），
  * 而服务端时间不一定等于用户本地时间 —— 有的学校差十几分钟。
  * 失效点必须跟着【服务端】的日历走，否则会出现
  * 「显示已失效但设备上还能用」这种更糟的情况。
  *
  * 难点是定位服务端的「哪一天」：服务端当前时间只给时分秒（nowdate），
- * 没有日期。解法是用订单自带的 orderdatetime —— 那是下单那一刻的
- * 服务端时间，自带日期，正好锚定了服务端的「当天」。
+ * 没有日期，而它跟本机的时差又可能跨过午夜 —— 直接拼绝对时刻会差一天，
+ * 亚秒级校时误差还会在 23:59:59 边界被放大成「差一整天」。
  *
- * 返回的是【本地时间表达】的失效时刻，方便用户对照自己的钟。
+ * 所以只算【还剩多久】：服务端当天 23:59:59 距服务端现在，差的就是
+ * 「当天剩余时间」，只依赖时分秒，跟日期、时区都无关：
+ *
+ *     剩余 = (到 24:00:00 的秒数) - 1 秒
+ *
+ * 这个值既是「新下单的验证码能活多久」，也是失效点相对现在的位置，
+ * 两处共用同一个算法，免得各算各的漂移。
  */
-function verifyExpireAt(order) {
-  /* 失效点是【服务端日历】当天 23:59:59。
-   *
-   * 难点在「服务端的那一天」：服务端当前时间只给时分秒（nowdate），
-   * 没有日期，服务端与本机的时差又可能跨过午夜。去拼绝对时刻有两坑：
-   * 拼出来的日期可能差一天；亚秒级校时误差在 23:59:59 边界会被放大。
-   *
-   * 所以只算【还剩多久】——服务端当天 23:59:59 距服务端现在，
-   * 差的就是「当天剩余时间」，这个值只依赖时分秒，跟日期、时区都无关：
-   *
-   *     剩余 = (到 24:00:00 的秒数) - 1 秒
-   *
-   * 拿到剩余时间再加到本地当前时刻上，得到用户能对照自己钟表的失效点。
-   * 这样显示与服务器判定严格一致，不会出现「显示已失效但设备上还能用」。
-   */
+function serverDayRemainMs() {
   const srv = serverNow();
   const h = srv.getHours(), m = srv.getMinutes(), s = srv.getSeconds();
-  const remain = ((24 - h) * 3600 - m * 60 - s) * 1000 - 1000;
-  return new Date(Date.now() + remain);
+  return ((24 - h) * 3600 - m * 60 - s) * 1000 - 1000;
+}
+
+/* 已有订单的失效时刻（本地时间表达，方便用户对照自己的钟）。
+   订单只要还在列表里，就一定属于服务端的「当天」——服务端一到自己的
+   0 点就不再返回它了，所以用「距服务端零点还有多久」推算是准确的。 */
+function verifyExpireAt() {
+  return new Date(Date.now() + serverDayRemainMs());
 }
 
 /* ---------- 时间：用服务端时间校准，避开本地时钟偏差 ---------- */
@@ -801,29 +799,19 @@ function startCountdown() {
   const tick = () => {
     const els = document.querySelectorAll('[data-cd]');
     if (!els.length) return clearInterval(cdTimer);
-    /* 验证码当日有效：失效点是【服务端日历】当天 23:59:59，
-       但换算成本地时间来显示，用户才能对照自己的钟。
-       失效点绑定下单那天的服务端日期（见 verifyExpireAt）。 */
+    /* 验证码当日有效：失效点跟着【服务端】日历走，再换算成本地时间
+       表达，用户才能对照自己的钟。所有订单共享同一个服务端日切点，
+       所以算一次就够。 */
     const now = Date.now();
-    els.forEach(el => {
-      const idx = +el.getAttribute('data-cd');
-      const order = (state.orders || [])[idx];
-      let end = verifyExpireAt(order);
-      /* 拿不到 orderdatetime 就退回按当前服务端时刻算（老数据兼容） */
-      if (!end) {
-        end = new Date(serverNow());
-        end.setHours(23, 59, 59, 0);
-      }
-      const diff = end.getTime() - now;
-      let text;
-      if (diff <= 0) {
-        text = '即将失效';
-      } else {
-        const h = Math.floor(diff / 3600000), m = Math.floor(diff % 3600000 / 60000);
-        text = h > 0 ? `${h} 小时 ${m} 分后失效` : `${m} 分钟后失效`;
-      }
-      el.textContent = text;
-    });
+    const diff = verifyExpireAt().getTime() - now;
+    let text;
+    if (diff <= 0) {
+      text = '即将失效';
+    } else {
+      const h = Math.floor(diff / 3600000), m = Math.floor(diff % 3600000 / 60000);
+      text = h > 0 ? `${h} 小时 ${m} 分后失效` : `${m} 分钟后失效`;
+    }
+    els.forEach(el => { el.textContent = text; });
   };
   tick();
   cdTimer = setInterval(tick, 30000);
@@ -1098,6 +1086,19 @@ function openBook(code) {
 
   const w = $('#bkWarn');
   const warns = [];
+  /* 快到服务端的日切点了：现在下单，验证码活不过一小时。
+     这条要说清楚「几点失效、还剩多久」，别只说「注意风险」——
+     含糊的提醒等于没提醒，用户不知道该改什么。
+     阈值按【剩余有效期】算而不是钟点：各校服务器零点相对现实的偏移
+     不一样（有人慢十几分钟、有人快几分钟），写死「23 点后提醒」必然
+     有的学校提醒太早、有的太晚。 */
+  const remainMs = serverDayRemainMs();
+  if (remainMs > 0 && remainMs < 60 * 60000) {
+    const exp = new Date(Date.now() + remainMs);
+    const mins = Math.max(1, Math.round(remainMs / 60000));
+    warns.push(`<strong>验证码当日有效：这次预约只到 ${fmtClock(exp)} 失效（还剩 ${mins} 分钟）。</strong>`
+      + '如果你打算过了这个点再去，可能就来不及了。');
+  }
   warns.push(`本次限时 ${tmin} 分钟、限额 ${fare} 元，均从设备开阀后开始累计。`);
   if (state.balance !== null && Number(state.balance) <= 0) {
     warns.push('水控余额为 0，开阀可能失败，建议先充值。');
