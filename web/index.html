@@ -622,7 +622,8 @@ input[type=tel]::placeholder{color:var(--ink3)}
 
 <script>
 const $ = s => document.querySelector(s);
-const state = {orders: [], rooms: [], cfg: {}, settings: {}, balance: null, serverOffset: 0, pickedRoom: null};
+const state = {orders: [], rooms: [], cfg: {}, settings: {}, balance: null, serverOffset: 0,
+               serverCalibrated: false, pickedRoom: null};
 
 function toast(msg, err) {
   const t = $('#toast');
@@ -808,9 +809,17 @@ function startCountdown() {
     if (diff <= 0) {
       text = '即将失效';
     } else {
+      /* 向下取整 + 最少 1 分钟：ceil 会说「还剩 2 分钟」可实际只剩 1 分多，
+          floor 又会把「还剩 30 秒」说成「0 分钟后失效」——那看着像已失效。
+          所以末段单独兜成「不足 1 分钟」。 */
       const h = Math.floor(diff / 3600000), m = Math.floor(diff % 3600000 / 60000);
-      text = h > 0 ? `${h} 小时 ${m} 分后失效` : `${m} 分钟后失效`;
+      if (h > 0) text = `${h} 小时 ${m} 分后失效`;
+      else if (m >= 1) text = `${m} 分钟后失效`;
+      else text = '不足 1 分钟后失效';
     }
+    /* 没能和服务器对时：这个数字是按本机时间估的，学校时差会让它偏。
+       标出来，别让它冒充服务端的判定。 */
+    if (!state.serverCalibrated) text = '约 ' + text;
     els.forEach(el => { el.textContent = text; });
   };
   tick();
@@ -1019,8 +1028,16 @@ async function loadAll() {
       let off = srv.getTime() - now.getTime();
       if (Math.abs(off) > 43200000) off -= 86400000 * Math.sign(off); // 跨天修正
       state.serverOffset = off;
+      state.serverCalibrated = true;
       const big = Math.abs(off) > 60000;
       $('#srvTime').textContent = '服务器 ' + fmtClock(srv) + (big ? ' · 已自动校准' : '');
+    } else {
+      /* 拿不到服务端时间：不能假装和服务器对齐。serverOffset 保持 0，
+         失效倒计时会退回用本机时间算，各校时差不同，这个值可能偏
+         （本校区服务器慢 15 分钟，就会把失效时间显示晚 15 分钟）。
+         所以把状态说清楚，别让用户以为那就是服务端的判定。 */
+      state.serverCalibrated = false;
+      $('#srvTime').textContent = '服务器时间未知 · 按本机时间估算';
     }
     $('#hName').textContent = state.cfg.name ? state.cfg.name + ' · 洗澡' : '洗澡';
     $('#hSub').textContent = state.cfg.school || '';
