@@ -49,10 +49,23 @@ cp -r ../android-app/site/. site/
 容器会注入 `PORT` 环境变量，`server.py` 优先读它；本地仍支持 `python server.py 8770`。启动命令：
 
 ```bash
-BATH_STATELESS=1 BATH_COOKIE_SECURE=1 python3 server.py
+BATH_STATELESS=1 BATH_COOKIE_SECURE=1 BATH_STATE_KEY=<64 位十六进制> python3 server.py
 ```
 
-**必须开无状态模式**：票据加密后放在浏览器 cookie，服务端不保存任何账号数据（见 `docs/STATELESS.md`）。绝对不要用默认的「单人自用」模式对外服务——那会把登录态写在服务端，换个人登录就互相覆盖。`BATH_COOKIE_SECURE=1` 在 HTTPS 下给 cookie 加 `Secure`；不设 `BATH_STATE_KEY` 时会在运行目录生成 `state.key`，删掉它等于让所有人重新登录一次，固定密钥请用 64 位十六进制环境变量，别写进仓库。
+### 服务器不存储任何数据
+
+线上部署按「数据只属于你」的口径核对，四项都要满足：
+
+| 检查项 | 做法 |
+| --- | --- |
+| 票据不落盘 | `BATH_STATELESS=1`：凭据加密后放进**你自己浏览器的 cookie**，服务端不写数据库、不写文件、不维护会话，一次请求对应一次转发 |
+| 不生成密钥文件 | 必须传 `BATH_STATE_KEY`（64 位十六进制）；不传会在运行目录生成 `state.key` |
+| 日志不含凭据 | 服务端只把访问日志打到 stdout，不写日志文件；票据不进日志（回归见 `tests/test_stateless_e2e.py`） |
+| 部署目录干净 | 不含 `config.json`、`state.key`、`state.log`、`version_cache.json` 或任何真实票据 |
+
+`BATH_COOKIE_SECURE=1` 在 HTTPS 下给 cookie 加 `Secure`。固定密钥只能用环境变量传入，**不要写进仓库**；换密钥等于让所有人重新登录一次。
+
+**必须开无状态模式**：绝对不要用默认的「单人自用」模式对外服务——票据会写进 `config.json`，换个人登录就互相覆盖。实现说明见 `docs/STATELESS.md`。
 
 > ⚠️ **上线合并版之后，不要再单独用 static 方式部署 `android-app/site/`**——那会把 Python 服务顶掉，`/web/` 与 `/api/*` 全部 404。官网有改动时，重新复制快照并重新部署**这个目录**。
 
@@ -72,10 +85,8 @@ server.py       HTTP 服务（静态页 + JSON 接口 + 网页登录/退出 + �
 statebox.py     无状态会话：票据加密进 cookie，服务端不保存（多人部署时启用）
 vwater.py       智慧用水业务的协议实现（会话、预约、记录、限时限额）
 wxlogin.py      登录流程实现（建立会话、参数加密、签名）
-updater.py      检查更新：多通道探测 GitHub，本地清单 / 缓存兜底
 login.py        登录命令行：拿 session 并写入 config.json
-web/index.html  单页界面
-web/latest.json 版本清单（GitHub 读不到时的兜底，发版时更新）
+web/index.html  单页界面（内含网页端专属隐私政策模板）
 site/           官网静态页快照（部署前从安卓仓库复制，已在 .gitignore 中）
 config.json     登录后生成，含票据和个人信息（已在 .gitignore 中）
 docs/STATELESS.md  无状态会话的实现说明与移植指南
@@ -99,10 +110,14 @@ CONTRIBUTING.md 贡献说明
 - 消费限时、限额：滑块 + 文本框联动，金额以 **0.05 元**为步进（与浴室实际扣费单位一致），服务端按「分」做整数校验
 - **保存限额后自动取消所有已有预约**：订单里存的是预约当时的数值，不重新预约不生效
 - 顶部下拉刷新；所有弹窗按住顶部横条下拉可跟手关闭
-- **检查更新**：服务端代查 GitHub（官方接口 → CDN 清单 → 本地清单 → 缓存），GitHub 打不开时仍给出 Android 客户端的最新版本、下载地址与 SHA-256；网页端本身刷新即最新
+- **余额提醒阈值**：可自行设定（0.5–20 元，0.5 步进）或关闭，低于该值标记「偏低」，默认 5 元
+- **首次启动强制同意隐私政策**：锁定弹层、读完才能同意；条文变更提升版本号，下次启动重新征求同意
+- **二级设置页**：「我的 → 设置」里集中管理消费限制、提醒、登录、官网、隐私政策与问题反馈
+- **问题反馈**：直达官网反馈页，不需要 GitHub 账号
 - 首页「充值」按钮弹出说明弹层；退出登录有二次确认；登录失效先提示再自动弹登录框
 - 最近 6 个月的用水记录
 - 深色模式自适应、可「添加到主屏幕」（PWA）
+- **不做版本检查**：网页端刷新即最新，不向 GitHub 或任何 CDN 发请求；需要 Android 版请到官网下载
 
 ## 已知限制
 

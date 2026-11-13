@@ -289,57 +289,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
   border-top-color:var(--brand);display:none}
 #pullHint.busy .spin{display:inline-block}
 
-/* ---------- 检查更新 ---------- */
-.updrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;
-  font-size:13.5px;border-bottom:1px solid var(--line)}
-.updrow .r{color:var(--ink2);font-size:12.5px;font-weight:600;text-align:right}
-.updstate{display:flex;gap:11px;align-items:flex-start;margin:14px 0 0;padding:14px 15px;border-radius:15px;
-  background:rgba(37,99,235,.09);border:1.5px solid rgba(37,99,235,.32);color:var(--brand)}
-.updstate .t{font-size:15.5px;font-weight:800;line-height:1.45}
-.updstate .d{font-size:12.5px;font-weight:600;line-height:1.6;margin-top:4px;opacity:.92}
-.updstate.ok{background:rgba(18,183,106,.11);border-color:rgba(18,183,106,.38);color:var(--ok)}
-.updstate.bad{background:rgba(247,144,9,.13);border-color:rgba(247,144,9,.45);color:#b54708}
-.updstate .spin{width:16px;height:16px;border-width:2px;border-color:rgba(37,99,235,.25);
-  border-top-color:var(--brand);flex:none;margin-top:2px}
-.updnotes{font-size:12.5px;line-height:1.75;color:var(--ink2);margin-top:12px;
-  padding:12px 13px;border-radius:12px;background:rgba(16,24,40,.04);
-  /* 日志改成完整显示后内容会变长，这里限高滚动，弹层本身不被撑爆 */
-  max-height:30vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-/* Markdown 渲染出来的元素样式 */
-.updnotes h2,.updnotes h3,.updnotes h4{color:var(--ink);font-weight:700;margin:14px 0 6px}
-.updnotes h2{font-size:14.5px}
-.updnotes h3{font-size:13.5px}
-.updnotes h4{font-size:13px;color:var(--ink2)}
-.updnotes h2:first-child,.updnotes h3:first-child{margin-top:0}
-.updnotes p{margin:0 0 8px}
-.updnotes ul,.updnotes ol{margin:0 0 9px;padding-left:19px}
-.updnotes li{margin:3px 0}
-.updnotes code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;
-  background:var(--code-bg);padding:1.5px 5px;border-radius:5px}
-.updnotes pre{background:var(--code-bg);padding:10px 12px;border-radius:10px;overflow-x:auto;
-  font-size:11.5px;line-height:1.6;margin:0 0 9px;border:1px solid var(--line)}
-.updnotes pre code{background:none;padding:0;font-size:11.5px}
-.updnotes table{border-collapse:collapse;width:100%;font-size:12px;margin:0 0 10px;
-  display:block;overflow-x:auto}
-.updnotes th,.updnotes td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
-.updnotes th{background:var(--code-bg);font-weight:700;color:var(--ink);white-space:nowrap}
-.updnotes blockquote{margin:0 0 9px;padding:7px 11px;border-left:3px solid var(--brand);
-  background:rgba(37,99,235,.07);color:var(--ink2)}
-.updnotes a{color:var(--brand);text-decoration:none;word-break:break-all}
-.updnotes hr{border:0;border-top:1px solid var(--line);margin:13px 0}
-.updalt{margin-top:14px;font-size:12px;color:var(--ink3);line-height:2}
-.updalt .lb{color:var(--ink2);font-weight:700;margin-top:8px}
-.updalt a{display:block;margin-top:1px}
-.updalt code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--ink2);
-  background:rgba(16,24,40,.05);padding:2px 5px;border-radius:5px;word-break:break-all}
-.updlink{cursor:pointer;text-decoration:none;color:var(--brand)}
-@media (prefers-color-scheme:dark){
-  .updstate.ok{background:rgba(18,183,106,.15);border-color:rgba(18,183,106,.45);color:#5fd6a4}
-  .updstate.bad{background:rgba(247,144,9,.16);border-color:rgba(253,176,34,.5);color:#fdb022}
-  .updstate .spin{border-color:rgba(79,141,255,.3);border-top-color:var(--brand)}
-  .updnotes{background:rgba(255,255,255,.05)}
-  .updalt code{background:rgba(255,255,255,.07)}
-}
+/* 检查更新已移除：网页端刷新即最新，不再向 GitHub / CDN 发请求 */
 </style>
 </head>
 <body>
@@ -389,6 +339,34 @@ input[type=tel]::placeholder{color:var(--ink3)}
 
   <!-- 我的 -->
   <div id="pageMe" class="hidden">
+    <div class="sec-title"><h3>账号</h3></div>
+    <section class="card">
+      <div class="rec"><span>姓名</span><span class="r" id="meName">—</span></div>
+      <div class="rec"><span>学号</span><span class="r" id="meId">—</span></div>
+      <div class="rec"><span>学校</span><span class="r" id="meSchool">—</span></div>
+      <div class="rec"><span>手机号</span><span class="r" id="mePhone">—</span></div>
+      <div class="rec"><span>登录态</span><span class="r" id="meToken">—</span></div>
+    </section>
+
+    <div class="sec-title"><h3>设置</h3></div>
+    <section class="card">
+      <div class="setrow" id="rowSettings">
+        <div class="grow">
+          <div class="name">设置</div>
+          <div class="info">消费限制、余额提醒、登录、隐私政策</div>
+        </div>
+        <div class="val"><i>›</i></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 二级设置页 -->
+  <div id="pageSettings" class="hidden">
+    <div class="sec-title" style="gap:8px">
+      <h3>设置</h3>
+      <button class="starpick" id="btnSettingsBack">‹ 返回我的</button>
+    </div>
+
     <div class="sec-title"><h3>消费限制</h3></div>
     <section class="card">
       <div class="setrow" id="rowTime">
@@ -410,13 +388,15 @@ input[type=tel]::placeholder{color:var(--ink3)}
       达到限时或限额设备会自动关阀；想继续用，在设备上重新输入同一个验证码即可再开（验证码当日有效）。
     </div>
 
-    <div class="sec-title"><h3>账号</h3></div>
+    <div class="sec-title"><h3>提醒</h3></div>
     <section class="card">
-      <div class="rec"><span>姓名</span><span class="r" id="meName">—</span></div>
-      <div class="rec"><span>学号</span><span class="r" id="meId">—</span></div>
-      <div class="rec"><span>学校</span><span class="r" id="meSchool">—</span></div>
-      <div class="rec"><span>手机号</span><span class="r" id="mePhone">—</span></div>
-      <div class="rec"><span>登录态</span><span class="r" id="meToken">—</span></div>
+      <div class="setrow" id="rowBalTh">
+        <div class="grow">
+          <div class="name">余额提醒阈值</div>
+          <div class="info">余额低于该值时标记「偏低」</div>
+        </div>
+        <div class="val"><span id="valBalTh">—</span><i>›</i></div>
+      </div>
     </section>
 
     <div class="sec-title"><h3>登录</h3></div>
@@ -429,24 +409,24 @@ input[type=tel]::placeholder{color:var(--ink3)}
 
     <div class="sec-title"><h3>应用</h3></div>
     <section class="card">
-      <div class="setrow" id="rowUpdate">
-        <div class="grow">
-          <div class="name">检查更新</div>
-          <div class="info" id="updRowInfo">当前版本 1.0.3</div>
-        </div>
-        <div class="val"><span id="valVersion">1.0.3</span><i>›</i></div>
-      </div>
       <div class="setrow" id="rowSite">
         <div class="grow">
           <div class="name">官网</div>
-          <div class="info">下载、更新日志与问题反馈</div>
+          <div class="info">下载、更新日志与赞赏码</div>
         </div>
         <div class="val"><i>›</i></div>
       </div>
-      <div class="setrow" id="rowPrivacy">
+      <div class="setrow" id="rowPolicy">
         <div class="grow">
           <div class="name">隐私政策</div>
           <div class="info">账号与验证码如何处理</div>
+        </div>
+        <div class="val"><i>›</i></div>
+      </div>
+      <div class="setrow" id="rowFeedback">
+        <div class="grow">
+          <div class="name">问题反馈</div>
+          <div class="info">不用 GitHub 账号，直接留言给作者</div>
         </div>
         <div class="val"><i>›</i></div>
       </div>
@@ -604,27 +584,104 @@ input[type=tel]::placeholder{color:var(--ink3)}
   </div>
 </div>
 
-<!-- 检查更新 -->
-<div class="sheet" id="updSheet">
+<!-- 首次启动的隐私政策：锁定弹层，读完才能同意 -->
+<div class="sheet" id="policyFirst">
   <div class="bar-h"></div>
-  <h3>检查更新</h3>
-  <div class="updrow"><span>当前版本</span><span class="r" id="updCur">—</span></div>
-  <div class="updstate" id="updState">
-    <span class="spin"></span>
-    <div>
-      <div class="t">正在检测…</div>
-      <div class="d">依次尝试 GitHub 官方接口与 jsDelivr CDN 清单</div>
-    </div>
-  </div>
-  <div class="hint" id="updTip" style="margin:12px 0 0"></div>
-  <div class="updnotes" id="updNotes" style="display:none"></div>
-  <div id="updBtns" style="display:flex;gap:9px;margin-top:14px"></div>
-  <div class="updalt" id="updAlt"></div>
+  <h3>隐私政策</h3>
+  <div class="hint" id="policyFirstBody"
+       style="max-height:44vh;overflow-y:auto;-webkit-overflow-scrolling:touch;line-height:1.8;font-size:13px"></div>
+  <div class="tipnote" id="policyFirstTip" style="margin:10px 2px 0">请向下滑动读完全文</div>
   <div style="display:flex;gap:9px;margin-top:12px">
-    <button class="btn ghost" style="flex:1" id="updClose">关闭</button>
-    <button class="btn" style="flex:1.4" id="updRetry">重新检测</button>
+    <button class="btn ghost" style="flex:1" id="policyNo">不同意</button>
+    <button class="btn" style="flex:1.4" id="policyYes" disabled>同意并继续</button>
   </div>
 </div>
+
+<!-- 设置里随时回看同一份条文 -->
+<div class="sheet" id="policySheet">
+  <div class="bar-h"></div>
+  <h3>隐私政策</h3>
+  <div class="hint" id="policySheetBody"
+       style="max-height:52vh;overflow-y:auto;-webkit-overflow-scrolling:touch;line-height:1.8;font-size:13px"></div>
+  <div style="display:flex;gap:9px;margin-top:16px">
+    <button class="btn" style="flex:1" id="policyClose">关闭</button>
+  </div>
+</div>
+
+<!-- 余额提醒阈值 -->
+<div class="sheet" id="balThSheet">
+  <div class="bar-h"></div>
+  <h3>余额提醒阈值</h3>
+  <div class="hint" style="font-size:12.5px;color:var(--ink2);line-height:1.7">
+    余额低于该值时标记「偏低」，预约时也会提醒。设为「关闭」则不提醒；余额 ≤ 0 的「余额不足」始终显示。
+  </div>
+  <input type="number" id="balThInput" min="0.5" max="20" step="0.5" placeholder="例如 5"
+         style="width:100%;margin-top:14px;padding:11px 12px;border-radius:12px;border:1px solid var(--line);
+                background:var(--card);color:var(--ink);font-size:15px">
+  <div style="display:flex;gap:9px;margin-top:14px">
+    <button class="btn ghost" style="flex:1" id="balThOff">关闭提醒</button>
+    <button class="btn" style="flex:1.4" id="balThSave">保存</button>
+  </div>
+</div>
+
+<template id="policyTpl">
+  <p>本政策说明「智水网页端」如何处理你的信息。网页端与 Android 客户端是两套独立界面，条文各自成文；Android 版的政策见官网。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">1. 适用范围</h4>
+  <p>本工具是个人开发的第三方客户端，<strong>与学校及水控服务商无隶属、委托或合作关系</strong>。学校与水控平台自身的处理行为适用其规则，本工具无法控制。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">2. 我们处理的信息</h4>
+  <ul>
+    <li>你主动提供：手机号、短信验证码（仅用于换取登录凭据，<strong>验证码不保存</strong>）</li>
+    <li>平台返回：登录凭据、姓名、学校、学号、水控余额、预约订单、开阀验证码</li>
+    <li>你创建的：星标楼栋、余额提醒阈值、政策同意状态</li>
+  </ul>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">3. 我们不收集</h4>
+  <p>身份证号、精确位置、通讯录、短信内容、相册、设备标识符、广告标识。不接入广告、统计、崩溃收集或支付 SDK，不出售、不出租、不交换你的个人信息。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">4. 处理目的与依据</h4>
+  <p>登录与取码、展示余额与订单、余额提醒，均属履行你请求的服务所必需。不做使用统计，不用于广告或用户画像。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">5. 服务器不存储任何用户数据（重要）</h4>
+  <p>线上版本以<strong>无状态模式</strong>运行：登录凭据经加密后放进<strong>你自己浏览器的 cookie</strong>，每个请求自带凭据，服务端不落盘、不写数据库、不写进日志、不跨用户共享，也不维护会话。服务端只做一次请求对应一次转发。</p>
+  <p>星标楼栋、余额提醒阈值、政策同意状态存在浏览器的 localStorage 里，只在本机。退出登录立即清除登录凭据；清除浏览器数据即删除全部本地内容。会话 cookie 最长 7 天，过期需重新登录。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">6. 第三方</h4>
+  <p>登录与业务请求由服务端转发至完美校园水控平台，由其按自身规则处理，会暴露服务端出口 IP 与请求内容；官网（由 WorkBuddy 云服务托管）承载下载页、隐私政策与问题反馈页。<strong>网页端不做版本检查，也不向 GitHub 或 jsDelivr 等 CDN 发请求。</strong></p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">7. 共享、转让与公开披露</h4>
+  <p>除依法配合监管或司法机关外，不向任何第三方提供你的个人信息；如未来发生运营主体变更，会提前告知并重新取得同意。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">8. 跨境传输</h4>
+  <p>不向境外提供个人信息，也没有境外 CDN 节点参与。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">9. 验证码显示</h4>
+  <p>开阀验证码<strong>只显示在网页里</strong>，不会推送到通知栏或锁屏。但手机亮屏、页面停留时，旁边的人仍可能看到；在宿舍等共用环境请自行注意。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">10. 数据安全</h4>
+  <p>通信使用 HTTPS；浏览器 cookie 中的凭据经加密；不保存密码（登录使用短信验证码）；退出登录立即清除凭据。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">11. 你的权利</h4>
+  <p>访问：在「我的」查看账号信息。更正：重新登录同步。删除：退出登录删除凭据、清除浏览器数据删除全部本地内容。撤回同意：停止使用并清除浏览器数据。咨询与投诉见第 15 节。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">12. 未成年人</h4>
+  <p>面向高校在校学生，主要用户为成年人。不满 14 周岁者不应使用；14–18 周岁应在监护人同意和指导下使用。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">13. 变更与通知</h4>
+  <p>本政策内容变更时提升版本号，下次启动会重新展示并征求同意；在你重新同意前不可继续使用。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">14. 外部链接</h4>
+  <p>相关页面可能链接到第三方内容（官网、项目主页）。第三方内容由其自行负责，不适用本政策。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">15. 联系我们</h4>
+  <p>问题、投诉或行使个人信息权利，可通过官网的「问题反馈」页（不需要 GitHub 账号），或项目主页的 Issues：github.com/ghg6666678/wanmei-bath-android。我们会在 7 个工作日内回复。</p>
+
+  <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">16. 官网反馈表单</h4>
+  <p>网页端本身没有反馈表单，也不会主动上传任何内容。官网的「问题反馈」页会把你主动填写的内容存入云端数据库：反馈正文、可选联系方式、反馈类型、版本号、来源页面与浏览器 User-Agent。</p>
+  <p><strong>用途</strong>：仅用于定位问题和回复，不用于广告或用户画像。<strong>可见范围</strong>：网页端没有读取权限，只有开发者能查看。请不要填写账号密码、短信验证码、身份证号等敏感信息。</p>
+</template>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -762,7 +819,7 @@ function renderBalance() {
   $('#balNum').textContent = Number(v).toFixed(2);
   const p = $('#balPill');
   if (Number(v) <= 0) { p.className = 'pill danger'; p.textContent = '余额不足'; }
-  else if (Number(v) < 5) { p.className = 'pill warn'; p.textContent = '偏低'; }
+  else if (balThresh() !== null && Number(v) < balThresh()) { p.className = 'pill warn'; p.textContent = '偏低'; }
   else { p.className = 'pill'; p.textContent = '正常'; }
 }
 
@@ -1027,11 +1084,7 @@ function renderMe() {
   $('#valTime').textContent = st.max_time_limit ? st.max_time_limit + ' 分钟' : '—';
   const fareFen = Number(st.max_fare_limit || 0);
   $('#valFare').textContent = fareFen ? (fareFen >= 500000 ? '不限' : (fareFen / 100) + ' 元') : '—';
-  const ver = state.appVersion || APP_VERSION;
-  $('#valVersion').textContent = ver;
-  const upd = state.update && state.update.latest;
-  $('#updRowInfo').textContent = '当前版本 ' + ver +
-    (upd && upd.version && verCmp(upd.version, ver) > 0 ? ' · 有新版本 ' + upd.version : '');
+  $('#valBalTh').textContent = balThLabel();
 }
 
 async function loadAll() {
@@ -1676,6 +1729,8 @@ let __sheetLocked = false;
 let __loginPending = false;
 
 function showSheet(sel, locked) {
+  /* 政策弹层锁定期间，其它弹层（登录框等）一律不弹，避免绕过强制同意 */
+  if (__sheetLocked && sel !== '#policyFirst') return;
   const m = $('#mask'), sh = $(sel);
   /* 已经在显示同一个弹层：不要重置动画，否则会再滑一次。
      这条路径以前会出现在 login → guide 的原地切换上，
@@ -1785,6 +1840,7 @@ document.querySelectorAll('nav button').forEach(b => {
     const tab = b.dataset.tab;
     $('#pageRec').classList.toggle('hidden', tab !== 'rec');
     $('#pageMe').classList.toggle('hidden', tab !== 'me');
+    $('#pageSettings').classList.add('hidden');
     document.querySelector('main').children[0].classList.toggle('hidden', tab !== 'home');
     $('#orderCard').classList.toggle('hidden', tab !== 'home' || !state.orders.length);
     document.querySelector('.sec-title').style.display = tab === 'home' ? '' : 'none';
@@ -1973,55 +2029,17 @@ $('#btnLogout').onclick = () => {
 };
 
 
-/* ---------- 检查更新 ----------
- * GitHub 在部分网络下打不开，所以这里按「官方接口 → CDN 清单 → 内置清单/缓存」逐级降级，
- * 任何一步失败都不会把用户卡在空白弹窗上：最差也能给出已知版本和手动下载地址。 */
-const APP_VERSION = '1.0.3';        /* 网页端版本；安卓端以安装包里的真实版本为准 */
-const REPO_HOME = 'https://github.com/ghg6666678/wanmei-bath-android';
+/* ---------- 外部链接与通用工具 ---------- */
 const SITE_URL = 'https://zhishui-site.app.workbuddy.host/?sharecode=KLDDLXOQRD';
 const PRIVACY_URL = 'https://zhishui-site.app.workbuddy.host/privacy.html?sharecode=KLDDLXOQRD';
-
-/* 版本号比较：1.0.10 > 1.0.9；带后缀的（1.0.3-dev）比正式版旧。与原生 Update.verCmp 规则一致 */
-function verCmp(a, b) {
-  const nums = s => {
-    const parts = String(s == null ? '' : s).trim().replace(/^v/, '').split(/[.\-]/);
-    const out = [];
-    for (const p of parts) {
-      const m = p.match(/^\d+/);
-      if (!m) break;
-      out.push(parseInt(m[0], 10));
-    }
-    return out;
-  };
-  const suf = s => {
-    const t = String(s == null ? '' : s).trim().replace(/^v/, '');
-    return /[^\d.]/.test(t) || /\.$/.test(t);
-  };
-  const pa = nums(a), pb = nums(b);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const x = i < pa.length ? pa[i] : 0, y = i < pb.length ? pb[i] : 0;
-    if (x !== y) return x > y ? 1 : -1;
-  }
-  const sa = suf(a), sb = suf(b);
-  return sa === sb ? 0 : (sa ? -1 : 1);
-}
+const FEEDBACK_URL = 'https://zhishui-site.app.workbuddy.host/feedback.html?sharecode=KLDDLXOQRD';
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
     ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 }
 
-function fmtDay(iso) {
-  if (!iso) return '';
-  const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})/);
-  return m ? m[1] + '-' + m[2] + '-' + m[3] : String(iso).slice(0, 10);
-}
-
-function hostOf(u) {
-  try { return new URL(u).host; } catch (e) { return '镜像'; }
-}
-
-/* 用系统浏览器打开（安卓走原生 Intent，网页走新窗口），不占用 App 自己的 WebView */
+/* 用系统浏览器打开，不占用 WebView */
 function openExternal(url) {
   if (!url) return;
   const nat = __native();
@@ -2029,391 +2047,103 @@ function openExternal(url) {
   try { window.open(url, '_blank', 'noopener'); } catch (e) { location.href = url; }
 }
 
-function copyText(t) {
-  const nat = __native();
-  if (nat && nat.copyText) { nat.copyText(t); toast('已复制'); return; }
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(t).then(() => toast('已复制'), () => toast('复制失败', true));
-  } else toast('复制失败，请长按选择', true);
+/* ---------- 余额提醒阈值（只存本机 localStorage） ---------- */
+function getBalTh() {
+  try { return localStorage.getItem('balThresh') || ''; } catch (e) { return ''; }
 }
-
-/* 取版本信息：安卓走原生（原生内部已做多通道 + 内置清单兜底）；网页先问服务端，再退到本地清单 */
-async function fetchUpdateInfo() {
-  const nat = __native();
-  if (nat && typeof nat.checkUpdateAsync === 'function') return await nativeCall('checkUpdateAsync');
+function setBalTh(v) {
   try {
-    const r = await fetch('/api/version?t=' + Date.now());
-    const j = await r.json();
-    if (j && j.latest && j.latest.version) return j;
-    throw new Error((j && j.error) || '服务端没有返回版本信息');
-  } catch (e) {
-    try {
-      const r = await fetch('/web/latest.json?t=' + Date.now());
-      const j = await r.json();
-      if (j && j.version) {
-        return {ok: true, current: {version: APP_VERSION, versionCode: 0}, latest: j,
-                source: '本地清单', stale: true,
-                error: '未能连接服务端', tried: []};
+    if (v) localStorage.setItem('balThresh', v);
+    else localStorage.removeItem('balThresh');
+  } catch (e) { }
+}
+function balThresh() {
+  const v = getBalTh();
+  if (v === 'off') return null;
+  const n = Number(v);
+  return (n > 0 && n <= 20) ? n : 5;   /* 未设置时默认 5 元 */
+}
+function balThLabel() {
+  return getBalTh() === 'off' ? '关闭' : balThresh() + ' 元';
+}
+
+$('#rowBalTh').onclick = () => {
+  const cur = getBalTh();
+  $('#balThInput').value = (cur === 'off' || !cur) ? '' : String(Number(cur) || 5);
+  showSheet('#balThSheet');
+};
+$('#balThOff').onclick = () => {
+  setBalTh('off'); renderBalance(); renderMe(); hideSheet(); toast('余额提醒已关闭');
+};
+$('#balThSave').onclick = () => {
+  const n = Number($('#balThInput').value);
+  if (!n || n < 0.5 || n > 20) { toast('请填 0.5 – 20 之间的金额', true); return; }
+  setBalTh(String(Math.round(n * 2) / 2));
+  renderBalance(); renderMe(); hideSheet(); toast('已保存');
+};
+
+/* ---------- 隐私政策：首次启动强制同意，条文变更会重读 ---------- */
+const POLICY_VER = '1';
+function policyAccepted() {
+  try { return localStorage.getItem('policyAccepted') === POLICY_VER; } catch (e) { return false; }
+}
+function showPolicy(first) {
+  const html = $('#policyTpl').innerHTML;
+  if (first) {
+    const body = $('#policyFirstBody');
+    body.innerHTML = html;
+    body.scrollTop = 0;
+    const yes = $('#policyYes');
+    yes.disabled = true;
+    $('#policyFirstTip').textContent = '请向下滑动读完全文';
+    const markRead = () => {
+      if (body.scrollTop + body.clientHeight >= body.scrollHeight - 8) {
+        yes.disabled = false;
+        $('#policyFirstTip').textContent = '已读完，可以同意了';
       }
-    } catch (e2) { }
-    throw e;
-  }
-}
-
-let updBusy = false;
-
-async function runUpdateCheck() {
-  if (updBusy) return;
-  updBusy = true;
-  const st = $('#updState');
-  st.className = 'updstate';
-  st.innerHTML = '<span class="spin"></span><div><div class="t">正在检测…</div>' +
-    '<div class="d">依次尝试 GitHub 官方接口与 jsDelivr CDN 清单</div></div>';
-  $('#updNotes').style.display = 'none';
-  $('#updNotes').textContent = '';
-  $('#updBtns').innerHTML = '';
-  $('#updAlt').innerHTML = '';
-  $('#updTip').textContent = '';
-  $('#updCur').textContent = state.appVersion || APP_VERSION;
-  try {
-    const res = await fetchUpdateInfo();
-    state.update = res;
-    renderUpdate(res);
-    renderMe();
-  } catch (e) {
-    renderUpdate({ok: false, error: String((e && e.message) || e), tried: []});
-  }
-  updBusy = false;
-}
-
-function mkBtn(label, primary, fn) {
-  const b = document.createElement('button');
-  b.className = 'btn' + (primary ? '' : ' ghost');
-  b.style.flex = '1';
-  b.textContent = label;
-  b.onclick = fn;
-  return b;
-}
-
-function mkLink(label, url) {
-  const a = document.createElement('a');
-  a.href = '#';
-  a.className = 'updlink';
-  a.textContent = label;
-  a.dataset.url = url || '';
-  a.onclick = e => { e.preventDefault(); openExternal(a.dataset.url); };
-  return a;
-}
-
-/* 选下载地址：优先用实测通过的第一个，别让用户点一个已知下不动的链接。
-   原生层在检查更新时已经把每个地址都试过（只取 1 字节），结果在 downloads 里。 */
-function pickDownload(latest) {
-  const list = Array.isArray(latest.downloads) ? latest.downloads : [];
-  const ok = list.filter(d => d && d.ok && d.url);
-  return ok.length ? ok[0].url : (latest.apkUrl || '');
-}
-
-function downloadApk(latest) {
-  const nat = __native();
-  const name = latest.apkName || ('zhishui-' + latest.version + '.apk');
-  const url = pickDownload(latest);
-  if (!url) { toast('没有可用的下载地址', true); return; }
-  if (nat && nat.downloadApk) {
-    nativeCall('downloadApk', url, name)
-      .then(j => toast(j.message || '已加入下载队列'))
-      .catch(e => toast(e.message || '下载失败，换个下载源试试', true));
-    return;
-  }
-  openExternal(url);
-}
-
-/* ---------- 精简 Markdown 渲染 ----------
-   发布说明本来就是 Markdown 原文。与其降级成纯文本（表格变成一排竖线、
-   代码块直接丢、强调号露出来），不如直接渲染。
-
-   安全策略：先把整段文本做 HTML 转义，再在转义后的文本上替换标记。
-   所以正文里的 < > & 不可能变成标签；链接只放行 http/https，挡掉 javascript:。
-   支持：标题、粗体、斜体、行内代码、代码块、无序/有序列表、表格、引用、链接、水平线。 */
-function mdEscape(s) {
-  return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-/* 行内标记。顺序有讲究：先把行内代码挖出来存好，
-   免得代码里的 * 被当成斜体标记。 */
-function mdInline(s) {
-  const codes = [];
-  s = s.replace(/`([^`]+)`/g, function (_, c) {
-    codes.push(c);
-    return '\u0000' + (codes.length - 1) + '\u0000';
-  });
-  /* 只匹配 http/https 开头的链接；其它形态（比如 javascript:）原样保留，
-     免得正则只吃掉一半、留下「)}」这种残渣。 */
-  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, function (_, txt, url) {
-    return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + txt + '</a>';
-  });
-  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
-  return s.replace(/\u0000(\d+)\u0000/g, function (_, i) {
-    return '<code>' + codes[+i] + '</code>';
-  });
-}
-
-function mdRow(line) {
-  return line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
-}
-
-function mdIsBlock(t) {
-  return /^#{1,6}\s/.test(t) || /^([-*+]|\d+\.)\s+/.test(t) ||
-         t.startsWith('|') || t.startsWith('&gt;') || t.startsWith('```') ||
-         /^(-{3,}|\*{3,}|_{3,})$/.test(t);
-}
-
-function renderMarkdown(md) {
-  const lines = mdEscape(md || '').split('\n');
-  const out = [];
-  let i = 0;
-
-  while (i < lines.length) {
-    const t = lines[i].trim();
-
-    /* 代码块 */
-    if (t.startsWith('```')) {
-      const lang = t.slice(3).trim().replace(/[^A-Za-z0-9_+-]/g, '');
-      const buf = [];
-      i++;
-      while (i < lines.length && !lines[i].trim().startsWith('```')) { buf.push(lines[i]); i++; }
-      i++;                                     // 跳过结束围栏
-      out.push('<pre><code' + (lang ? ' class="lang-' + lang + '"' : '') + '>' +
-               buf.join('\n') + '</code></pre>');
-      continue;
-    }
-
-    /* 标题：# 映射成 h2、## 映射成 h3，弹层里用不上 h1 */
-    let m = t.match(/^(#{1,6})\s+(.*)$/);
-    if (m) {
-      const lv = Math.min(6, m[1].length + 1);
-      out.push('<h' + lv + '>' + mdInline(m[2]) + '</h' + lv + '>');
-      i++;
-      continue;
-    }
-
-    /* 水平线 */
-    if (/^(-{3,}|\*{3,}|_{3,})$/.test(t)) { out.push('<hr>'); i++; continue; }
-
-    /* 表格：本行是 |…| 且下一行是分隔行 */
-    if (t.startsWith('|') && i + 1 < lines.length &&
-        /^\|[\s:|-]+\|?$/.test(lines[i + 1].trim())) {
-      const head = mdRow(t);
-      i += 2;
-      const rows = [];
-      while (i < lines.length && lines[i].trim().startsWith('|')) {
-        rows.push(mdRow(lines[i].trim()));
-        i++;
-      }
-      out.push('<table><thead><tr>' +
-        head.map(h => '<th>' + mdInline(h) + '</th>').join('') +
-        '</tr></thead><tbody>' +
-        rows.map(r => '<tr>' + r.map(c => '<td>' + mdInline(c) + '</td>').join('') + '</tr>').join('') +
-        '</tbody></table>');
-      continue;
-    }
-
-    /* 引用 */
-    if (t.startsWith('&gt;')) {
-      const buf = [];
-      while (i < lines.length && lines[i].trim().startsWith('&gt;')) {
-        buf.push(lines[i].trim().replace(/^&gt;\s?/, ''));
-        i++;
-      }
-      out.push('<blockquote>' + mdInline(buf.join(' ')) + '</blockquote>');
-      continue;
-    }
-
-    /* 列表 */
-    if (/^([-*+]|\d+\.)\s+/.test(t)) {
-      const ordered = /^\d+\./.test(t);
-      const items = [];
-      while (i < lines.length && /^([-*+]|\d+\.)\s+/.test(lines[i].trim())) {
-        items.push(lines[i].trim().replace(/^([-*+]|\d+\.)\s+/, ''));
-        i++;
-      }
-      const tag = ordered ? 'ol' : 'ul';
-      out.push('<' + tag + '>' +
-        items.map(x => '<li>' + mdInline(x) + '</li>').join('') +
-        '</' + tag + '>');
-      continue;
-    }
-
-    /* 空行 */
-    if (!t) { i++; continue; }
-
-    /* 段落：连续普通行合并 */
-    const buf = [];
-    while (i < lines.length && lines[i].trim() && !mdIsBlock(lines[i].trim())) {
-      buf.push(lines[i].trim());
-      i++;
-    }
-    if (buf.length) out.push('<p>' + mdInline(buf.join(' ')) + '</p>');
-    else i++;                                  /* 防止死循环 */
-  }
-
-  return out.join('');
-}
-
-function renderUpdate(res) {
-  const cur = (res.current && res.current.version) || state.appVersion || APP_VERSION;
-  const curCode = res.current && res.current.versionCode;
-  const latest = res.latest || {};
-  const st = $('#updState'), notes = $('#updNotes'), btns = $('#updBtns'),
-        alt = $('#updAlt'), tip = $('#updTip');
-  $('#updCur').textContent = cur + (curCode ? '（构建号 ' + curCode + '）' : '');
-
-  const cmp = latest.version ? verCmp(latest.version, cur) : 0;
-  const hasNew = cmp > 0;
-  const stale = !!res.stale;
-  const isApp = !!__native();      /* 安卓端要跟安装包版本比；网页端刷新页面就是最新 */
-
-  if (!res.ok) {
-    st.className = 'updstate bad';
-    st.innerHTML = '<div><div class="t">检测失败</div><div class="d">' +
-      esc(res.error || '连不上 GitHub，也没有可用的本地记录') + '</div></div>';
-    tip.textContent = 'GitHub 在部分网络下打不开，检测失败不影响正常使用。可以稍后重试，或用下面的地址手动下载。';
-  } else if (stale) {
-    st.className = 'updstate bad';
-    st.innerHTML = '<div><div class="t">没能连上 GitHub</div><div class="d">' +
-      esc(res.error || '检测未成功') + '，下面的版本信息来自「' + esc(res.source || '本地记录') + '」' +
-      (hasNew ? '<div class="d" style="margin-top:5px">发现新版本 ' + esc(latest.version) + '</div>' : '') +
-      '</div></div>';
-    tip.textContent = '已知的最新版本照样能下载；下载完成后回到这里点「重新检测」即可。';
-  } else if (!isApp) {
-    /* 网页端：没有安装与版本比较这回事，刷新页面即可；顺带给出 Android 客户端的最新版 */
-    st.className = 'updstate ok';
-    st.innerHTML = '<div><div class="t">网页端无需安装</div><div class="d">当前 ' + esc(cur) +
-      ' · 刷新页面即为最新</div></div>';
-    tip.textContent = latest.version
-      ? '下面给出的是 Android 客户端的最新版本 v' + esc(latest.version) + '，需要装 App 时可以下载。'
-      : '';
-  } else if (hasNew) {
-    st.className = 'updstate';
-    st.innerHTML = '<div><div class="t">发现新版本 ' + esc(latest.version) + '</div><div class="d">当前 ' +
-      esc(cur) + ' → 最新 ' + esc(latest.version) +
-      (latest.publishedAt ? ' · 发布于 ' + esc(fmtDay(latest.publishedAt)) : '') +
-      ' · 来源：' + esc(res.source || '') + '</div></div>';
-    tip.textContent = '与旧版同一签名证书，可直接覆盖安装，登录态不会丢。';
+    };
+    body.onscroll = markRead;
+    /* 条文不足一屏时不会触发 scroll，直接放行，避免按钮永远点不动 */
+    requestAnimationFrame(markRead);
+    $('#policyNo').onclick = () => toast('不同意则无法使用本工具，请关闭页面', true);
+    yes.onclick = () => {
+      try { localStorage.setItem('policyAccepted', POLICY_VER); } catch (e) { }
+      hideSheet(true);
+      /* 政策锁定期间登录弹层被挡住了，同意后重走一次启动流程 */
+      location.reload();
+    };
+    showSheet('#policyFirst', true);
   } else {
-    st.className = 'updstate ok';
-    st.innerHTML = '<div><div class="t">已是最新版本</div><div class="d">当前 ' + esc(cur) +
-      (cmp < 0 ? '，线上最新是 ' + esc(latest.version) + '（当前版本比线上更高）' : '') +
-      ' · 来源：' + esc(res.source || '') + '</div></div>';
-    tip.textContent = '';
-  }
-
-  /* notesMd 是完整的 Markdown 原文，直接渲染；只有旧版服务端/内置清单才退回纯文本 */
-  if (latest.notesMd) {
-    notes.innerHTML = renderMarkdown(latest.notesMd);
-    notes.style.display = '';
-  } else if (latest.notes) {
-    notes.textContent = latest.notes;
-    notes.style.display = '';
-  }
-
-  /* 原生层已经逐个试过下载地址（只取 1 字节），这里以实测结果为准。
-     downloads 缺失时（旧版本服务端 / 内置清单）退回原来的列表。 */
-  const dlList = (Array.isArray(latest.downloads) && latest.downloads.length) ? latest.downloads : null;
-  const dlOk = dlList ? dlList.filter(d => d && d.ok && d.url) : null;
-  const allDead = !!(dlList && dlList.length && dlOk.length === 0);
-
-  btns.innerHTML = '';
-  if (!isApp) {
-    btns.appendChild(mkBtn('刷新页面', true, () => location.reload()));
-    if (latest.apkUrl) btns.appendChild(mkBtn('下载 Android 版', false, () => downloadApk(latest)));
-  } else if (hasNew && latest.apkUrl && allDead) {
-    /* 实测每个地址都连不上：不给「下载」按钮，免得点了必然失败。
-       改成复制直链，让用户拿去电脑上下。 */
-    btns.appendChild(mkBtn('复制下载链接', true, () => copyText(latest.apkUrl)));
-    btns.appendChild(mkBtn('用浏览器打开', false, () => openExternal(latest.releaseUrl || REPO_HOME)));
-  } else if (hasNew && latest.apkUrl) {
-    btns.appendChild(mkBtn('下载新版 APK', true, () => downloadApk(latest)));
-    btns.appendChild(mkBtn('用浏览器打开', false, () => openExternal(latest.releaseUrl || REPO_HOME)));
-  } else {
-    btns.appendChild(mkBtn('重新检测', false, () => runUpdateCheck()));
-  }
-
-  alt.innerHTML = '';
-  if (latest.apkUrl || latest.releaseUrl) {
-    const lb = document.createElement('div');
-    lb.className = 'lb';
-    lb.textContent = '下载地址';
-    alt.appendChild(lb);
-    const dlLabel = d => (d.kind === 'github'
-      ? 'GitHub 直链 · github.com'
-      : '加速节点 · ' + hostOf(d.url));
-    if (dlOk && dlOk.length) {
-      dlOk.forEach(d => alt.appendChild(mkLink(dlLabel(d), d.url)));
-    } else if (dlList) {
-      dlList.forEach(d => alt.appendChild(mkLink(dlLabel(d) + '（未连通）', d.url)));
-    } else {
-      /* 没有实测数据（旧缓存 / 内置清单），保持原来的列法 */
-      if (latest.apkUrl) alt.appendChild(mkLink('GitHub 直链 · github.com', latest.apkUrl));
-      (latest.mirrors || []).forEach(m => alt.appendChild(mkLink('加速节点 · ' + hostOf(m), m)));
-    }
-    alt.appendChild(mkLink('GitHub · 全部版本与历史反馈', latest.releaseUrl || REPO_HOME));
-    /* 网络限制是客观存在的：这里不承诺「点了一定能下」，而是给出可执行的退路。
-       之前放过第三方代理镜像，实测会被劫持跳转到无关站点，已全部移除。 */
-    const tip2 = document.createElement('div');
-    tip2.className = 'hint';
-    tip2.style.marginTop = '8px';
-    tip2.textContent = allDead
-      ? '这个网络下所有下载地址都连不上（已逐个实测）。请把上面的 GitHub 直链复制到电脑上下载，再传回手机安装。'
-      : (dlOk && dlOk.length
-          ? '地址已逐个实测，下面的都能直接打开。'
-          : '以上地址在部分网络下可能打不开。若都失败，把 GitHub 直链复制到电脑上下载，再传回手机安装。');
-    alt.appendChild(tip2);
-    if (latest.sha256) {
-      const lb2 = document.createElement('div');
-      lb2.className = 'lb';
-      lb2.textContent = 'SHA-256';
-      alt.appendChild(lb2);
-      const c = document.createElement('code');
-      c.textContent = latest.sha256;
-      alt.appendChild(c);
-      const cp = document.createElement('span');
-      cp.className = 'updlink';
-      cp.style.marginLeft = '6px';
-      cp.textContent = '复制';
-      cp.onclick = () => copyText(latest.sha256);
-      alt.appendChild(cp);
-    }
-  }
-  if (res.tried && res.tried.length) {
-    const t = document.createElement('div');
-    t.className = 'lb';
-    t.textContent = '已尝试的通道';
-    alt.appendChild(t);
-    alt.appendChild(document.createTextNode(res.tried.join(' · ')));
+    $('#policySheetBody').innerHTML = html;
+    $('#policyClose').onclick = () => hideSheet();
+    showSheet('#policySheet');
   }
 }
 
-$('#rowUpdate').onclick = () => { showSheet('#updSheet'); runUpdateCheck(); };
+/* ---------- 二级设置页 ---------- */
+$('#rowSettings').onclick = () => {
+  $('#pageMe').classList.add('hidden');
+  $('#pageSettings').classList.remove('hidden');
+  renderMe();
+};
+$('#btnSettingsBack').onclick = () => {
+  $('#pageSettings').classList.add('hidden');
+  $('#pageMe').classList.remove('hidden');
+};
+
+/* ---------- 外链入口 ---------- */
 $('#rowSite').onclick = () => openExternal(SITE_URL);
-$('#rowPrivacy').onclick = () => openExternal(PRIVACY_URL);
-$('#updClose').onclick = () => hideSheet();
-$('#updRetry').onclick = () => runUpdateCheck();
+$('#rowPolicy').onclick = () => showPolicy(false);
+$('#rowFeedback').onclick = () => openExternal(FEEDBACK_URL);
 
-/* 安卓端取安装包里的真实版本号 */
-(function () {
-  const nat = __native();
-  if (nat && nat.appVersion) {
-    try {
-      const v = JSON.parse(nat.appVersion());
-      if (v && v.version) state.appVersion = v.version;
-    } catch (e) { }
-  }
-})();
-/* Android 返回键：先关弹层，再回首页，最后退出 */
+/* Android 返回键：先关弹层，再回我的/首页，最后退出 */
 window.__onBack = function () {
   if (document.querySelector('.sheet.on')) { hideSheet(); return true; }
+  if (!$('#pageSettings').classList.contains('hidden')) {
+    $('#pageSettings').classList.add('hidden');
+    $('#pageMe').classList.remove('hidden');
+    return true;
+  }
   const cur = document.querySelector('nav button.on');
   if (cur && cur.dataset.tab !== 'home') {
     const h = document.querySelector('nav button[data-tab="home"]');
@@ -2464,6 +2194,10 @@ setInterval(() => {
   if (document.querySelector('.sheet.on')) return;   // 弹层开着，别重绘背景
   loadAll();
 }, 180000);
+
+
+/* 首次启动 / 条文变更后，锁定弹层征求同意 */
+if (!policyAccepted()) showPolicy(true);
 </script>
 </body>
 </html>
