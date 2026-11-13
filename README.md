@@ -28,17 +28,33 @@ Windows 上也可以直接双击 `启动.bat`（会调用 `server.py`）。
 
 启动后终端会打印局域网地址，例如 `http://192.168.1.20:8770`，**手机连同一个 WiFi** 用浏览器打开即可。
 
-## 在线部署（WorkBuddy Sites / 任意单端口容器）
+## 在线部署（官网 + 网页端共用一个地址）
 
-想让手机在校外也能打开，不必和电脑连同一个 WiFi，可以发成带分享码的外链。但**必须开无状态模式**：票据加密后放在浏览器 cookie，服务端不保存任何账号数据（见 `docs/STATELESS.md`）。**绝对不要用默认的「单人自用」模式对外服务**——那会把登录态写在服务端，换个人登录就互相覆盖。
+WorkBuddy Sites 在这个账号下**只有一个发布应用**：官网和网页端没法各自拿一个链接，单独部署任何一个都会覆盖另一个（实测过）。解决办法是让同一个 Python 服务同时托管两者：
 
-容器会注入 `PORT` 环境变量，`server.py` 优先读它；本地仍支持 `python server.py 8770`。启动命令示例：
+| 路径 | 内容 |
+| --- | --- |
+| `/` 及官网资源（`style.css`、`privacy.html`、`wechat-reward.png`…） | 官网静态页 |
+| `/web/` | 网页端界面（官网下载区的「不想装 APK？」入口指向这里） |
+| `/api/*` | 网页端后端：登录、业务、版本检查 |
+
+**部署前先生成官网快照**（`site/` 已被 `.gitignore`，不入库；官网文件仍以安卓仓库的 `site/` 为唯一维护点）：
+
+```bash
+cp -r ../android-app/site/. site/
+```
+
+`server.py` 启动时检测 `site/`：存在就按上表路由，不存在就全部走 `web/`，本地开发行为不变。
+
+容器会注入 `PORT` 环境变量，`server.py` 优先读它；本地仍支持 `python server.py 8770`。启动命令：
 
 ```bash
 BATH_STATELESS=1 BATH_COOKIE_SECURE=1 python3 server.py
 ```
 
-`BATH_COOKIE_SECURE=1` 在 HTTPS 下给 cookie 加 `Secure`。不设 `BATH_STATE_KEY` 时会在运行目录生成 `state.key`，删掉它等于让所有人重新登录一次；固定密钥请用 64 位十六进制的环境变量，别写进仓库。
+**必须开无状态模式**：票据加密后放在浏览器 cookie，服务端不保存任何账号数据（见 `docs/STATELESS.md`）。绝对不要用默认的「单人自用」模式对外服务——那会把登录态写在服务端，换个人登录就互相覆盖。`BATH_COOKIE_SECURE=1` 在 HTTPS 下给 cookie 加 `Secure`；不设 `BATH_STATE_KEY` 时会在运行目录生成 `state.key`，删掉它等于让所有人重新登录一次，固定密钥请用 64 位十六进制环境变量，别写进仓库。
+
+> ⚠️ **上线合并版之后，不要再单独用 static 方式部署 `android-app/site/`**——那会把 Python 服务顶掉，`/web/` 与 `/api/*` 全部 404。官网有改动时，重新复制快照并重新部署**这个目录**。
 
 **注意事项**：
 
@@ -60,6 +76,7 @@ updater.py      检查更新：多通道探测 GitHub，本地清单 / 缓存兜
 login.py        登录命令行：拿 session 并写入 config.json
 web/index.html  单页界面
 web/latest.json 版本清单（GitHub 读不到时的兜底，发版时更新）
+site/           官网静态页快照（部署前从安卓仓库复制，已在 .gitignore 中）
 config.json     登录后生成，含票据和个人信息（已在 .gitignore 中）
 docs/STATELESS.md  无状态会话的实现说明与移植指南
 CONTRIBUTING.md 贡献说明

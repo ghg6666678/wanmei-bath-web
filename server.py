@@ -28,6 +28,10 @@ import vwater
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(HERE, 'web')
+# 合并部署：官网静态页的快照目录（由 build 步骤从安卓仓库 site/ 复制而来）。
+# 没有这个目录时（本地开发）一律回落到 web/，原行为不变。
+SITE = os.path.join(HERE, 'site')
+SITE_EXISTS = os.path.isdir(SITE)
 CONFIG_PATH = os.path.join(HERE, 'config.json')
 
 _lock = threading.Lock()
@@ -337,13 +341,24 @@ class Handler(BaseHTTPRequestHandler):
     def _static(self, path):
         if path == '/' or not path:
             path = '/index.html'
-        p = os.path.normpath(os.path.join(WEB, path.lstrip('/')))
-        if not p.startswith(WEB) or not os.path.isfile(p):
+        if path == '/web':
+            path = '/web/'
+        # 一个服务同时托管两份页面：/web/ 是网页端，其余是官网（合并部署时）。
+        # 没有官网快照时全部走 web/，保持本地开发的原行为。
+        if path.startswith('/web/'):
+            root, rel = WEB, path[len('/web/'):] or 'index.html'
+        elif SITE_EXISTS:
+            root, rel = SITE, path.lstrip('/')
+        else:
+            root, rel = WEB, path.lstrip('/')
+        p = os.path.normpath(os.path.join(root, rel))
+        if not p.startswith(root) or not os.path.isfile(p):
             return self._send(404, 'not found', 'text/plain; charset=utf-8')
         ext = os.path.splitext(p)[1].lower()
         ctype = {'.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
                  '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8',
-                 '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json'}.get(
+                 '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json',
+                 '.apk': 'application/vnd.android.package-archive'}.get(
             ext, 'application/octet-stream')
         with open(p, 'rb') as f:
             self._send(200, f.read(), ctype)

@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>洗澡</title>
-<link rel="manifest" href="/manifest.webmanifest">
+<link rel="manifest" href="/web/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <style>
 :root{
@@ -2048,7 +2048,7 @@ async function fetchUpdateInfo() {
     throw new Error((j && j.error) || '服务端没有返回版本信息');
   } catch (e) {
     try {
-      const r = await fetch('/latest.json?t=' + Date.now());
+      const r = await fetch('/web/latest.json?t=' + Date.now());
       const j = await r.json();
       if (j && j.version) {
         return {ok: true, current: {version: APP_VERSION, versionCode: 0}, latest: j,
