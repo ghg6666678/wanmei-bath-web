@@ -576,7 +576,8 @@ def _lan_ip():
 
 
 def main():
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8770
+    # 容器 / WorkBuddy Sites 会注入 PORT；本地仍支持命令行参数与默认 8770
+    port = int(os.environ.get('PORT') or (sys.argv[1] if len(sys.argv) > 1 else 8770))
     load_config()
     if STATELESS:
         # 无状态模式下没有「本机登录态」这回事：每个请求自带凭据，启动时无从校验

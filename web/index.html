@@ -436,10 +436,17 @@ input[type=tel]::placeholder{color:var(--ink3)}
         </div>
         <div class="val"><span id="valVersion">1.0.3</span><i>›</i></div>
       </div>
-      <div class="setrow" id="rowRepo">
+      <div class="setrow" id="rowSite">
         <div class="grow">
-          <div class="name">项目主页</div>
-          <div class="info">源码、全部版本与问题反馈</div>
+          <div class="name">官网</div>
+          <div class="info">下载、更新日志与问题反馈</div>
+        </div>
+        <div class="val"><i>›</i></div>
+      </div>
+      <div class="setrow" id="rowPrivacy">
+        <div class="grow">
+          <div class="name">隐私政策</div>
+          <div class="info">账号与验证码如何处理</div>
         </div>
         <div class="val"><i>›</i></div>
       </div>
@@ -1971,6 +1978,8 @@ $('#btnLogout').onclick = () => {
  * 任何一步失败都不会把用户卡在空白弹窗上：最差也能给出已知版本和手动下载地址。 */
 const APP_VERSION = '1.0.3';        /* 网页端版本；安卓端以安装包里的真实版本为准 */
 const REPO_HOME = 'https://github.com/ghg6666678/wanmei-bath-android';
+const SITE_URL = 'https://zhishui-site.app.workbuddy.host/?sharecode=KLDDLXOQRD';
+const PRIVACY_URL = 'https://zhishui-site.app.workbuddy.host/privacy.html?sharecode=KLDDLXOQRD';
 
 /* 版本号比较：1.0.10 > 1.0.9；带后缀的（1.0.3-dev）比正式版旧。与原生 Update.verCmp 规则一致 */
 function verCmp(a, b) {
@@ -2349,7 +2358,7 @@ function renderUpdate(res) {
       if (latest.apkUrl) alt.appendChild(mkLink('GitHub 直链 · github.com', latest.apkUrl));
       (latest.mirrors || []).forEach(m => alt.appendChild(mkLink('加速节点 · ' + hostOf(m), m)));
     }
-    alt.appendChild(mkLink('项目主页 · 全部版本与反馈', latest.releaseUrl || REPO_HOME));
+    alt.appendChild(mkLink('GitHub · 全部版本与历史反馈', latest.releaseUrl || REPO_HOME));
     /* 网络限制是客观存在的：这里不承诺「点了一定能下」，而是给出可执行的退路。
        之前放过第三方代理镜像，实测会被劫持跳转到无关站点，已全部移除。 */
     const tip2 = document.createElement('div');
@@ -2387,7 +2396,8 @@ function renderUpdate(res) {
 }
 
 $('#rowUpdate').onclick = () => { showSheet('#updSheet'); runUpdateCheck(); };
-$('#rowRepo').onclick = () => openExternal(REPO_HOME);
+$('#rowSite').onclick = () => openExternal(SITE_URL);
+$('#rowPrivacy').onclick = () => openExternal(PRIVACY_URL);
 $('#updClose').onclick = () => hideSheet();
 $('#updRetry').onclick = () => runUpdateCheck();
 
