@@ -7,8 +7,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>洗澡</title>
-<link rel="manifest" href="/web/manifest.webmanifest">
-<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<!-- 图标内联成 data URI：浏览器不会为它单独发请求，省一次计费。
+     清单文件（manifest）原样去掉——PWA 安装对这个页面是可有可无的，
+     而它每次打开都要多打一次后端。iOS 侧的 apple-mobile-web-app-capable 仍然有效。 -->
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4NCiAgPGRlZnM+DQogICAgPGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+DQogICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMyNTYzZWIiLz4NCiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM4YmRmOCIvPg0KICAgIDwvbGluZWFyR3JhZGllbnQ+DQogIDwvZGVmcz4NCiAgPHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIHJ4PSIxMTIiIGZpbGw9InVybCgjZykiLz4NCiAgPHBhdGggZD0iTTI1NiA5NmMwIDAtODQgOTYtODQgMTYwIDAgNDYuNCAzNy42IDg0IDg0IDg0czg0LTM3LjYgODQtODRjMC02NC04NC0xNjAtODQtMTYweiINCiAgICAgICAgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iLjk2Ii8+DQogIDxwYXRoIGQ9Ik0yMzIgMjM2YzAgMjQgMTYgNDQgNDAgNDgiIHN0cm9rZT0iIzI1NjNlYiIgc3Ryb2tlLXdpZHRoPSIxNCINCiAgICAgICAgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBmaWxsPSJub25lIiBvcGFjaXR5PSIuNTUiLz4NCiAgPHBhdGggZD0iTTE0OCAzODhoMjE2IiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMTgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgb3BhY2l0eT0iLjkiLz4NCiAgPHBhdGggZD0iTTE3NiA0MjRoMTYwIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMTgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgb3BhY2l0eT0iLjU1Ii8+DQo8L3N2Zz4NCg==">
 <style>
 :root{
   --bg:#f4f6fb; --card:#fff; --ink:#101828; --ink2:#667085; --ink3:#98a2b3;
@@ -290,6 +292,12 @@ input[type=tel]::placeholder{color:var(--ink3)}
 #pullHint.busy .spin{display:inline-block}
 
 /* 检查更新已移除：网页端刷新即最新，不再向 GitHub / CDN 发请求 */
+
+/* 充值二维码：必须固定在白底上。深色模式若跟着卡片走，黑白反转会让扫码器
+   识别失败——这是唯一一处不能吃主题色的元素。 */
+.payqr{width:190px;margin:14px auto 0;padding:9px;background:#fff;border-radius:14px;
+  box-shadow:0 1px 0 rgba(16,24,40,.05),0 6px 18px rgba(16,24,40,.12)}
+.payqr svg,.payqr img{display:block;width:100%;height:auto;border-radius:5px}
 </style>
 </head>
 <body>
@@ -422,6 +430,13 @@ input[type=tel]::placeholder{color:var(--ink3)}
         </div>
         <div class="val"><i>›</i></div>
       </div>
+      <div class="setrow" id="rowChangelog">
+        <div class="grow">
+          <div class="name">更新日志<span id="clBadge" style="display:none;margin-left:6px;font-size:10.5px;padding:1px 6px;border-radius:99px;background:var(--brand);color:#fff;vertical-align:1px">新</span></div>
+          <div class="info">网页端刷新即最新，这里说明改了什么</div>
+        </div>
+        <div class="val"><i>›</i></div>
+      </div>
       <div class="setrow" id="rowPolicy">
         <div class="grow">
           <div class="name">隐私政策</div>
@@ -525,6 +540,15 @@ input[type=tel]::placeholder{color:var(--ink3)}
   </div>
 </div>
 
+<!-- 网页端更新日志：部署后第一次打开时弹一次 -->
+<div class="sheet" id="clSheet">
+  <div class="bar-h"></div>
+  <h3 id="clTitle">更新日志</h3>
+  <div class="hint" id="clSub"></div>
+  <div id="clBody"></div>
+  <button class="btn" style="width:100%;margin-top:16px;padding:14px" id="clOk">知道了</button>
+</div>
+
 <!-- 通用选择器 -->
 <div class="sheet" id="pickSheet">
   <div class="bar-h"></div>
@@ -576,17 +600,67 @@ input[type=tel]::placeholder{color:var(--ink3)}
   </div>
 </div>
 
-<!-- 充值说明：由首页「充值」按钮唤起，「我的」页不再保留充值内容 -->
+<!-- 充值：按用户当下在哪台设备上，给三条不同的最短路径。
+     本客户端不处理支付，钱直接进完美校园，不经过我们。
+
+     ① 微信内      → 直接跳官方授权页，静默授权后落在充值页（脚本见下）
+     ② 手机浏览器  → 不摆二维码，讲小程序路径：微信首页下拉就有点
+                     手机上调不出"另一台设备扫本屏"，扫码必须先把码存进相册，
+                     这一步比下拉找小程序更绕，所以这一支不给码
+     ③ 桌面浏览器  → 给二维码：手机扫一下，一步落到充值页
+
+     web/recharge-qr.svg 是「完美校园」服务号的网页授权入口，不是充值页本身：
+     扫码 → 微信静默授权 → 302 回 toRechage.action 并自动登录。
+     这条链接只在微信里有效，外部浏览器打开只会得到「请在微信客户端打开链接」。
+     appid 或 redirect_uri 一旦变化就要重新生成那张 SVG
+     （任意二维码库，字节模式，纠错等级不低于 M）。 -->
 <div class="sheet" id="paySheet">
   <div class="bar-h"></div>
   <h3>充值</h3>
-  <div class="hint">
-    本客户端只负责洗澡预约，不处理支付。<br>
-    充值请打开微信 → 搜索小程序<strong>「完美校园」</strong> → 首页点「充值」。
+
+  <!-- 微信内：整条链路都能走通，直接跳 -->
+  <div id="payInWx" class="hidden">
+    <div class="hint">
+      充值由<strong>「完美校园」</strong>提供，钱不经过本站。<br>
+      微信里会自动带上你的账号，不用再输密码。
+    </div>
+    <div style="display:flex;gap:9px;margin-top:16px">
+      <button class="btn ghost" style="flex:1" id="payClose">关闭</button>
+      <button class="btn" style="flex:1.4" id="payGo">去充值</button>
+    </div>
   </div>
-  <div style="display:flex;gap:9px;margin-top:16px">
-    <button class="btn ghost" style="flex:1" id="payClose">关闭</button>
-    <button class="btn" style="flex:1.4" id="payWx">打开微信</button>
+
+  <!-- 手机浏览器：二维码要先"存进相册再扫"，等于把码搬一次家；
+       小程序下拉一步就到，所以这一支不摆码，只讲路径。 -->
+  <div id="payMobile" class="hidden">
+    <div class="hint">
+      充值由<strong>「完美校园」</strong>提供，钱不经过本站。<br>
+      打开微信 → 首页下拉 → 点「完美校园」小程序 → 充值。
+    </div>
+    <div class="tipnote" style="margin:6px 2px 0">
+      没添加过就在微信里搜一次，之后它会一直留在下拉列表里。<br>
+      不想用小程序：微信搜「完美校园」服务号，从「校园卡」进充值。
+    </div>
+    <div style="display:flex;gap:9px;margin-top:16px">
+      <button class="btn ghost" style="flex:1" id="payClose2">关闭</button>
+      <button class="btn" style="flex:1.4" id="payOpenWx">打开微信</button>
+    </div>
+  </div>
+
+  <!-- 桌面浏览器：手机扫一下最快，一步落到充值页 -->
+  <div id="payDesktop" class="hidden">
+    <div class="hint">
+      用手机微信「扫一扫」下面的码，授权后直接进充值页。
+    </div>
+    <div class="payqr" id="payQr"><img data-src="recharge-qr.svg" alt="完美校园充值二维码" width="172" height="172" decoding="async"></div>
+    <div class="tipnote" style="margin:10px 2px 0">
+      手机上也可以：微信首页下拉 → 点「完美校园」小程序 → 充值。<br>
+      码打不开时：微信里搜索「完美校园」服务号，从「校园卡」进充值。
+    </div>
+    <div style="display:flex;gap:9px;margin-top:14px">
+      <button class="btn ghost" style="flex:1" id="payClose3">关闭</button>
+      <button class="btn" style="flex:1.4" id="payCopy">复制链接</button>
+    </div>
   </div>
 </div>
 
@@ -631,7 +705,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
 </div>
 
 <template id="policyTpl">
-  <p>本政策说明「智水网页端」如何处理你的信息。网页端与 Android 客户端是两套独立界面，条文各自成文；Android 版的政策见官网。</p>
+  <p>本政策说明「约澡网页端」如何处理你的信息。网页端与 Android 客户端是两套独立界面，条文各自成文；Android 版的政策见官网。</p>
 
   <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">1. 适用范围</h4>
   <p>本工具是个人开发的第三方客户端，<strong>与学校及水控服务商无隶属、委托或合作关系</strong>。学校与水控平台自身的处理行为适用其规则，本工具无法控制。</p>
@@ -1168,44 +1242,67 @@ async function loadAll() {
     const msg = String(e.message || e);
     if (/登录|token|票据/i.test(msg)) {
       const logged = (state.cfg || {}).hasToken;
-      /* 未登录时 /api/state 拿不到 config，这里单独拉一次 /api/config：
-         它不要求登录，能拿到「这个号还没绑校园卡」这个判断。 */
-      try {
-        const cj = await api('/api/config');
-        state.cfg = cj.config || state.cfg;
-      } catch (e2) { }
-      $('#roomList').innerHTML = `
-        <div style="text-align:center;padding:22px 6px">
-          <div style="font-size:15px;font-weight:650;margin-bottom:6px">${logged ? '登录态已失效' : '还没有登录'}</div>
-          <div style="font-size:12.5px;color:var(--ink2);line-height:1.7;margin-bottom:16px">
-            用手机号登录后即可预约，不需要原版 App。<br>
-            ${(state.cfg || {}).needCard ? '首次使用请先绑定校园卡，见下方提示。' : ''}
-          </div>
-          <button class="btn" id="btnLoginNow" style="width:100%">用手机号登录</button>
-          ${(state.cfg || {}).needCard ? '<button class="btn ghost" id="btnShowGuide" style="width:100%;margin-top:9px">怎么看绑校园卡？</button>' : ''}
-        </div>`;
-      const b = $('#btnLoginNow');
-      if (b) b.onclick = openLogin;
-      const bg = $('#btnShowGuide');
-      if (bg) bg.onclick = openGuide;
-      $('#orderCard').classList.add('hidden');
-      $('#balNum').textContent = '—';
-      $('#hName').textContent = greeting();
-      $('#hSub').textContent = '';
-      /* 登录态失效：先给一条明确提示，再弹登录框，避免打开 App 不知道发生了什么 */
-      if (!__autoLoginShown) {
-        __autoLoginShown = true;
-        if (logged) toast('登录失效，请重新登录', true);
-        setTimeout(() => {
-          const sh = $('#loginSheet');
-          if (sh && !sh.classList.contains('on')) openLogin();
-        }, 400);
+      /* 只有「本来有登录态、现在失效了」才值得再问一次 config（要拿 needCard 决定
+         要不要给绑卡引导）。从没登录过的人——外校学生、路人从分享链接点进来——
+         直接给登录框，一次多余请求都不发。这类访客占外链流量的绝大部分。 */
+      if (logged) {
+        try {
+          const cj = await api('/api/config');
+          state.cfg = cj.config || state.cfg;
+        } catch (e2) { }
       }
+      renderNeedLogin(logged);
       return;
     }
     toast(msg, true);
     $('#roomList').innerHTML = `<div class="empty">加载失败：${msg}</div>`;
   }
+}
+
+/* ---------- 未登录态 ----------
+   抽成独立函数有两个用处：接口返回「没登录」时渲染一次；首屏判断到
+   「这个浏览器从没登录过」时也直接渲染，不发任何请求。 */
+function renderNeedLogin(logged) {
+  $('#roomList').innerHTML = `
+    <div style="text-align:center;padding:22px 6px">
+      <div style="font-size:15px;font-weight:650;margin-bottom:6px">${logged ? '登录态已失效' : '还没有登录'}</div>
+      <div style="font-size:12.5px;color:var(--ink2);line-height:1.7;margin-bottom:16px">
+        用手机号登录后即可预约，不需要原版 App。<br>
+        ${(state.cfg || {}).needCard ? '首次使用请先绑定校园卡，见下方提示。' : ''}
+      </div>
+      <button class="btn" id="btnLoginNow" style="width:100%">用手机号登录</button>
+      ${(state.cfg || {}).needCard ? '<button class="btn ghost" id="btnShowGuide" style="width:100%;margin-top:9px">怎么看绑校园卡？</button>' : ''}
+    </div>`;
+  const b = $('#btnLoginNow');
+  if (b) b.onclick = openLogin;
+  const bg = $('#btnShowGuide');
+  if (bg) bg.onclick = openGuide;
+  $('#orderCard').classList.add('hidden');
+  $('#balNum').textContent = '—';
+  $('#hName').textContent = greeting();
+  $('#hSub').textContent = '';
+  /* 登录态失效：先给一条明确提示，再弹登录框，避免打开页面不知道发生了什么 */
+  if (!__autoLoginShown) {
+    __autoLoginShown = true;
+    if (logged) toast('登录失效，请重新登录', true);
+    setTimeout(() => {
+      const sh = $('#loginSheet');
+      if (sh && !sh.classList.contains('on')) openLogin();
+    }, 400);
+  }
+}
+
+/* 这个浏览器登录过没有。读不到 localStorage（隐私模式、存满）时返回 true，
+   宁可多打一次接口，也不能把正常用户挡在登录框外面。 */
+function __loggedOnce() {
+  try { return localStorage.getItem('loggedOnce') === '1'; }
+  catch (e) { return true; }
+}
+function __markLogged(v) {
+  try {
+    if (v) localStorage.setItem('loggedOnce', '1');
+    else localStorage.removeItem('loggedOnce');
+  } catch (e) { }
 }
 
 /* ---------- 预约 ---------- */
@@ -1745,12 +1842,85 @@ $('#rowFare').onclick = () => {
     v => saveSettings(state.settings.max_time_limit || 30, v));
 };
 
-/* ---------- 充值说明弹层：只给指引并打开微信，不处理支付 ---------- */
+/* ---------- 充值：微信内直接跳官方授权页，微信外给二维码 ---------- */
+/* 这一串是「完美校园」服务号的网页授权入口，不是充值页本身。
+   scope=snsapi_base 是静默授权：微信里打开会直接 302 回 toRechage.action，
+   并带回一个新的 code，用户不需要输密码。
+   反过来，微信外的浏览器打开它只会得到「请在微信客户端打开链接」，
+   所以这条链接只能在微信里点，外面只能靠扫码把手机带进去。
+
+   为什么不做成「打开服务号主页」：公众号主页要用 __biz（业务 ID），
+   和 appid 是两套体系，拼不出来；而且无论指向主页还是充值页，
+   浏览器里都得扫码，落到主页反而要多点一次菜单，纯负优化。
+   真要做的话地址是（appid 换不来，需从该号任意文章的分享链接取 biz）：
+   https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=MjM5NjUyMzc3MQ==&scene=110#wechat_redirect */
+const RECHARGE_AUTH = 'https://open.weixin.qq.com/connect/oauth2/authorize'
+  + '?appid=wx7dbb9c71507cd7df'
+  + '&redirect_uri=https%3A%2F%2Fweixin.17wanxiao.com%2Fhtml%2Fv2%2FtoRechage.action%3FreturnType%3DtoRechage'
+  + '&response_type=code&scope=snsapi_base&state=STATE#wechat_redirect';
+/* 用 UA 判断，而不是 UA 里找 weixin：微信 PC 端的 UA 同样带 MicroMessenger，
+   而 PC 端的内置浏览器也能正常走授权，判断一致反而更省事。 */
+const UA = navigator.userAgent;
+const IN_WECHAT = /MicroMessenger/i.test(UA);
+/* iPad 从 iOS 13 起 UA 伪装成 Macintosh，只能靠触点数量补判 */
+const IS_MOBILE = /Android|iPhone|iPod|HarmonyOS|Mobile/i.test(UA)
+  || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
+
+$('#payInWx').classList.toggle('hidden', !IN_WECHAT);
+$('#payMobile').classList.toggle('hidden', IN_WECHAT || !IS_MOBILE);
+$('#payDesktop').classList.toggle('hidden', IN_WECHAT || IS_MOBILE);
+/* 二维码只在真的会显示时才去拿：手机是绝大多数访问，这块从头到尾被隐藏，
+   但 <img src> 写死的话浏览器照样会下载。改成 data-src 后手机端零请求。 */
+if (!$('#payDesktop').classList.contains('hidden')) {
+  const __qr = $('#payDesktop').querySelector('img[data-src]');
+  if (__qr && !__qr.getAttribute('src')) __qr.src = __qr.dataset.src;
+}
+
 $('#payClose').onclick = hideSheet;
-$('#payWx').onclick = () => {
-  hideSheet();
-  if (__native()) __native().openUrl('weixin://');
-  else toast('请在微信中搜索小程序「完美校园」进行充值');
+$('#payClose2').onclick = hideSheet;
+$('#payClose3').onclick = hideSheet;
+
+/* 微信内：同窗口跳。必须留在同一个 webview，新开窗口会丢掉微信的登录态。 */
+$('#payGo').onclick = () => { location.href = RECHARGE_AUTH; };
+
+/* 手机分支：尽力把用户送进微信首页，下拉那一步交给他自己。
+   微信早就清掉了一批对外 scheme（scanqrcode 这类动作会被静默忽略），
+   iOS 更是直接拦掉外部浏览器对 weixin:// 的调用，所以唤起一定有失败的可能。
+   判据：2 秒内页面没被切到后台，就算没成功，提示用户手动打开。 */
+$('#payOpenWx').onclick = () => {
+  let left = false;
+  const onHide = () => { if (document.hidden) left = true; };
+  document.addEventListener('visibilitychange', onHide);
+  try {
+    /* 安卓点名包名的 Launcher Intent 比 weixin:// 稳：不依赖微信注册的 scheme */
+    location.href = /Android/i.test(UA)
+      ? 'intent://launch#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.tencent.mm;end'
+      : 'weixin://';
+  } catch (e) { /* 拦截了就交给下面的兜底提示 */ }
+  setTimeout(() => {
+    document.removeEventListener('visibilitychange', onHide);
+    if (!left) toast('没能自动唤起微信，请手动打开，首页下拉就能看到小程序');
+  }, 2000);
+};
+
+$('#payCopy').onclick = () => {
+  const ok = () => toast('已复制，可粘贴到微信里打开');
+  const bad = () => toast('复制失败，请直接用手机扫码', true);
+  /* 非 https 或旧 WebView 没有 clipboard API，退回 textarea + execCommand */
+  const legacy = () => {
+    const ta = document.createElement('textarea');
+    ta.value = RECHARGE_AUTH;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    let done = false;
+    try { done = document.execCommand('copy'); } catch (e) { done = false; }
+    document.body.removeChild(ta);
+    done ? ok() : bad();
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(RECHARGE_AUTH).then(ok, legacy);
+  } else legacy();
 };
 
 /* ---------- 弹层/导航 ---------- */
@@ -2021,6 +2191,7 @@ $('#lgSubmit').onclick = async () => {
   $('#lgWarn').style.display = 'none';
   try {
     await nativeCall('doLogin', phone, code);
+    __markLogged(true);          /* 记下「这个浏览器登录过」，下次打开才值得去拉数据 */
     $('#lgCode').value = '';
     await loadAll();
     /* state.cfg 是 loadAll 里刷新的，所以要在它之后判断：
@@ -2051,6 +2222,7 @@ $('#btnLogout').onclick = () => {
     async () => {
       try {
         await nativeCall('logout');
+        __markLogged(false);
         __autoLoginShown = true;   /* 主动退出，不要立刻再弹登录 */
         toast('已退出登录');
         $('#lgPhone').value = '';
@@ -2062,9 +2234,13 @@ $('#btnLogout').onclick = () => {
 
 
 /* ---------- 外部链接与通用工具 ---------- */
-const SITE_URL = 'https://zhishui-site.app.workbuddy.host/?sharecode=KLDDLXOQRD';
-const PRIVACY_URL = 'https://zhishui-site.app.workbuddy.host/privacy.html?sharecode=KLDDLXOQRD';
-const FEEDBACK_URL = 'https://zhishui-site.app.workbuddy.host/feedback.html?sharecode=KLDDLXOQRD';
+/* 站点基址与分享码：换域名只改这两行，下面所有对外链接都由它们拼出来。
+   站点用分享码控制访问，不带 sharecode 会 403。 */
+const SITE_ORIGIN = 'https://yuezao.org';
+const SHARE_CODE = 'KLDDLXOQRD';
+const SITE_URL = SITE_ORIGIN + '/?sharecode=' + SHARE_CODE;
+const PRIVACY_URL = SITE_ORIGIN + '/privacy.html?sharecode=' + SHARE_CODE;
+const FEEDBACK_URL = SITE_ORIGIN + '/feedback.html?sharecode=' + SHARE_CODE;
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
@@ -2219,17 +2395,141 @@ $('#guideWx').onclick = () => {
   }, 1500);
 };
 
-loadAll();
-// 3 分钟一次即可：太密会把这个账号的用水会话打挂（实测高频请求会触发保护）
-setInterval(() => {
+/* ---------- 网页端更新日志 ----------
+   网页端没有「安装」这一步，部署完用户刷新就是最新的，感知不到变化。
+   所以在页面里带一个构建标记，跟浏览器里记的上一次对比，不一样就弹一次说明。
+
+   发版流程（两处必须一起改，否则会「该弹不弹」或者「弹了空列表」）：
+     1. 把新条目 unshift 到 WEB_LOG 最前面，v 写当天日期，同一天多次改动写 2026.11.13-2
+     2. 把 WEB_BUILD 改成同一个值
+   纯后端改动（server.py）不需要动这里。 */
+
+const WEB_BUILD = '2026.11.13';
+const WEB_LOG_KEY = 'webBuildSeen';
+const WEB_LOG = [
+  { v: '2026.11.13', items: [
+    '官网换成 yuezao.org：下载页、隐私政策、反馈页都搬到新域名',
+    '网页端不再需要访问码，打开 web.yuezao.org 就能用',
+    '手机浏览器可「添加到主屏幕」，和安卓 App 是两个独立入口',
+  ] },
+];
+
+function webLogSeen() {
+  try { return localStorage.getItem(WEB_LOG_KEY) || ''; } catch (e) { return ''; }
+}
+function markWebLogSeen() {
+  try { localStorage.setItem(WEB_LOG_KEY, WEB_BUILD); } catch (e) { }
+}
+
+function renderWebLog(entries) {
+  const box = $('#clBody');
+  box.innerHTML = '';
+  entries.forEach(en => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'padding:12px 0;border-bottom:1px solid var(--line)';
+    const v = document.createElement('div');
+    v.textContent = en.v;
+    v.style.cssText = 'font-size:12px;color:var(--ink3);margin-bottom:7px';
+    const ul = document.createElement('ul');
+    ul.style.cssText = 'margin:0;padding-left:17px;font-size:13.5px;line-height:1.75;color:var(--ink2)';
+    en.items.forEach(t => {
+      const li = document.createElement('li');
+      li.textContent = t;          /* textContent 而不是 innerHTML：日志里出现 < > 时不会被当成标签 */
+      ul.appendChild(li);
+    });
+    wrap.appendChild(v);
+    wrap.appendChild(ul);
+    box.appendChild(wrap);
+  });
+  const last = box.lastElementChild;
+  if (last) last.style.borderBottom = '0';
+}
+
+function paintChangelogBadge() {
+  const el = $('#clBadge');
+  if (el) el.style.display = webLogSeen() === WEB_BUILD ? 'none' : 'inline-block';
+}
+
+function openChangelog(all) {
+  const seen = webLogSeen();
+  let entries = WEB_LOG;
+  if (!all) {
+    /* WEB_LOG 最新在前：找到上次看过的版本，它前面的才是新的 */
+    const i = WEB_LOG.findIndex(e => e.v === seen);
+    entries = i < 0 ? WEB_LOG.slice(0, 1) : WEB_LOG.slice(0, i);
+    if (!entries.length) entries = WEB_LOG.slice(0, 1);
+  }
+  renderWebLog(entries);
+  $('#clTitle').textContent = all ? '更新日志' : '网页端已更新';
+  $('#clSub').textContent = all
+    ? '只记录能感觉到的变化，完整记录在官网的更新日志页。'
+    : '你上次之后改的东西，看一遍就行，不需要做别的。';
+  showSheet('#clSheet');
+  markWebLogSeen();
+  paintChangelogBadge();
+}
+
+function maybeShowChangelog() {
+  if (__sheetLocked) return;                          /* 政策弹层正锁着，这次先不打断 */
+  if (document.querySelector('.sheet.on')) return;    /* 登录框之类已经弹出来了，别插队 */
+  if (webLogSeen() === WEB_BUILD) return;
+  openChangelog(false);
+}
+
+/* 第一次来只记录、不打扰：新用户不该一进门就被「更新了什么」拦住 */
+if (!webLogSeen()) markWebLogSeen();
+paintChangelogBadge();
+
+$('#clOk').onclick = () => hideSheet();
+$('#rowChangelog').onclick = () => openChangelog(true);
+
+
+/* ---------- 首屏 + 自动刷新 ----------
+   免费额度是按「请求数」算的：一个开着的页面每 3 分钟打一次接口，一小时就是 20 次。
+   人坐着不动、页面一直开着的时候，这部分比所有静态文件加起来还多。
+   三条约束把它压下来：
+     · 白天 5 分钟一次；23 点到次日 6 点降到 20 分钟（那个点澡堂也关了）
+     · 超过 10 分钟没有任何操作就停 —— 切后台由 document.hidden 兜住，
+       这一条管的是「屏幕亮着、人已经走了」
+     · 没登录态不刷
+   挂机一小时约 6 次，和 3 分钟一次在体感上分不出来。 */
+if (__loggedOnce()) {
+  loadAll();
+} else {
+  /* 从没登录过：不碰网络，直接把登录框摆出来。
+     外校学生点开分享链接就属于这一类，他们连一次接口都不该占。 */
+  renderNeedLogin(false);
+}
+
+let __lastAct = Date.now();
+['touchstart', 'mousedown', 'keydown', 'scroll', 'visibilitychange'].forEach(ev => {
+  window.addEventListener(ev, () => { __lastAct = Date.now(); }, {passive: true});
+});
+
+function __pollGap() {
+  const h = new Date().getHours();
+  return (h >= 23 || h < 6) ? 1200000 : 300000;
+}
+
+async function __pollTick() {
   if (document.hidden) return;
   if (document.querySelector('.sheet.on')) return;   // 弹层开着，别重绘背景
-  loadAll();
-}, 180000);
+  if (Date.now() - __lastAct > 600000) return;       // 10 分钟没动过，停了
+  if (!((state.cfg || {}).hasToken)) return;         // 没登录，没什么可刷的
+  try { await loadAll(); } catch (e) { }
+}
+
+(function __pollLoop() {
+  setTimeout(() => { __pollTick().then(__pollLoop, __pollLoop); }, __pollGap());
+})();
 
 
 /* 首次启动 / 条文变更后，锁定弹层征求同意 */
 if (!policyAccepted()) showPolicy(true);
+
+/* 更新日志延后一点再判断：让登录框、政策弹层先有机会出现，
+   有别的弹层在场就这次不弹，用户下次打开还能看到 */
+setTimeout(maybeShowChangelog, 900);
 </script>
 </body>
 </html>
