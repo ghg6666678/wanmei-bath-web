@@ -2234,13 +2234,12 @@ $('#btnLogout').onclick = () => {
 
 
 /* ---------- 外部链接与通用工具 ---------- */
-/* 站点基址与分享码：换域名只改这两行，下面所有对外链接都由它们拼出来。
-   站点用分享码控制访问，不带 sharecode 会 403。 */
+/* 站点基址：换域名只改这一行。官网已由 Cloudflare 边缘直出，不再校验分享码
+   （码只在上游直连时才需要，Worker 反代 /api/* 时会自动补），
+   所以对外链接一律不带码，2026-11-14 起。 */
 const SITE_ORIGIN = 'https://yuezao.org';
-const SHARE_CODE = 'KLDDLXOQRD';
-const SITE_URL = SITE_ORIGIN + '/?sharecode=' + SHARE_CODE;
-const PRIVACY_URL = SITE_ORIGIN + '/privacy.html?sharecode=' + SHARE_CODE;
-const FEEDBACK_URL = SITE_ORIGIN + '/feedback.html?sharecode=' + SHARE_CODE;
+const SITE_URL = SITE_ORIGIN + '/';
+const FEEDBACK_URL = SITE_ORIGIN + '/feedback.html';
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
