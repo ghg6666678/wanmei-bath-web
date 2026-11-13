@@ -8,6 +8,7 @@
 """
 import base64
 import json
+import os
 import threading
 import time
 import urllib.error
@@ -67,6 +68,29 @@ UA = ('Mozilla/5.0 (Linux; Android 16; PJE110) AppleWebKit/537.36 (KHTML, like G
 H5_ORIGIN = 'https://xqh5.17wanxiao.com'
 SIGN_KEY = b'wanmeixiaoyuan11'   # 16 字节标准 AES-128，官方 H5 前端 JS 明文常量
 
+# ---------- 上游受限识别 ----------
+# 参照同类反代的实战反馈（多人同时「解析失败」、特定时刻集中出现），上游在突发流量下
+# 会返回拦截页。403/412/429 是典型的限流/拦截状态码，这类响应**绝不能重试**——
+# 被拦还往里撞等于坐实异常。503 不在此列：它多半是普通过载，交给自愈逻辑处理一次。
+BLOCK_CODES = {403, 412, 429}
+BLOCK_HINT = '服务暂时受限（HTTP %d），可能触发了上游的访问限制。请过几分钟再试；' \
+             '如果持续出现，多半是预约开放时段太多人在抢，晚一点就好了。'
+
+# 只记元数据（时间/路径/状态码/响应长度），不记响应内容、不记任何账号信息——
+# 与「服务端不落盘用户数据」的隐私设计兼容。出问题时它是唯一的事后证据。
+EVENT_LOG = os.environ.get('BATH_EVENT_LOG') or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), 'events.log')
+
+
+def _event(kind, path, code, blen, ms):
+    try:
+        with open(EVENT_LOG, 'a', encoding='utf-8') as f:
+            f.write('%s %s %s http=%s bytes=%s took=%dms\n' % (
+                time.strftime('%Y-%m-%d %H:%M:%S'), kind,
+                (path or '').split('?')[0], code, blen, ms))
+    except Exception:
+        pass
+
 
 class VWaterError(Exception):
     pass
@@ -104,15 +128,21 @@ class Session:
         for k, v in (headers or {}).items():
             req.add_header(k, v)
         try:
+            t0 = time.time()
             r = self.opener.open(req, timeout=25)
             hdrs = dict(r.headers)
             _note_clock(hdrs, path)
-            return r.status, hdrs, r.read().decode('utf-8', 'ignore')
+            text = r.read().decode('utf-8', 'ignore')
+            _event('upstream', path, r.status, len(text), int((time.time() - t0) * 1000))
+            return r.status, hdrs, text
         except urllib.error.HTTPError as e:
             hdrs = dict(e.headers)
             _note_clock(hdrs, path)
-            return e.code, hdrs, e.read().decode('utf-8', 'ignore')
+            text = e.read().decode('utf-8', 'ignore')
+            _event('upstream', path, e.code, len(text), 0)
+            return e.code, hdrs, text
         except Exception as e:
+            _event('upstream', path, 'ERR', 0, 0)
             raise VWaterError(f'网络异常: {e}')
 
     def _sign(self, uuid, ts):
@@ -130,7 +160,16 @@ class Session:
             'token': self.cfg['token'],
         })
         code, headers, _ = self._call('/api/use-water/entrance?' + q)
+        # 先看状态码再谈跳转：被限流时也会「没有跳转地址」，但那不是登录态失效。
+        # 误报成「请重新提取 token」会把用户引去做无用功。
+        # 注意正常成功路径就是 302 + Location（opener 关了自动重定向），不能用 code 判成功。
+        if code in BLOCK_CODES:
+            raise VWaterError(BLOCK_HINT % code)
         loc = headers.get('Location') or headers.get('location') or ''
+        if not loc:
+            if code != 200:
+                raise VWaterError('入口接口异常 (HTTP %d)，请稍后再试' % code)
+            raise VWaterError('登录态失效（没有拿到跳转地址），请重新提取 token')
         if not loc:
             raise VWaterError('登录态失效（没有拿到跳转地址），请重新提取 token')
         p = dict(urllib.parse.parse_qsl(urllib.parse.urlparse(loc).query))
@@ -163,15 +202,26 @@ class Session:
         code, _, text = self._call('/api/use/water/h5/WXInvokFront/', body,
                                    {'uuid': self.uuid, 'timestamp': ts, 'encrypt': enc},
                                    referer=self.page)
+        # 被限流/拦截：无论 uuid 新旧都不重试，立即停手。
+        if code in BLOCK_CODES:
+            raise VWaterError(BLOCK_HINT % code)
         if code != 200 or not text:
-            if retry:
+            # 5xx/空响应值得一秒级自愈：uuid 可能过期，重做 entrance 再试一次。
+            # 但如果 entrance 是刚刚做过的，uuid 大概率没问题，重试只会多撞一次——
+            # 4xx 尤其如此。 entrance 的重做由 _ensure() 触发。
+            uuid_fresh = self._ts and (time.time() - self._ts) < 60
+            if retry and (code >= 500 or not uuid_fresh):
                 self.uuid = None
                 return self.invoke(cmd, extra, retry=False)
-            raise VWaterError(f'接口无响应 (HTTP {code})')
+            raise VWaterError('接口异常 (HTTP %s)，请稍后再试' % (code or '空响应'))
         try:
             outer = json.loads(text)
         except Exception:
-            raise VWaterError('返回格式异常: ' + text[:200])
+            # 这就是同类反代里「多人解析失败」的那个症状：HTTP 200 但内容不是 JSON
+            # （多半是拦截页/维护页）。记一条专用事件，方便事后从 events.log 里确认规模。
+            _event('nonjson', '/WXInvokFront', 200, len(text), 0)
+            raise VWaterError('上游返回了非预期的内容，可能触发了访问限制，请过几分钟再试。'
+                              '（原始内容前 200 字符：' + text[:200] + '）')
         inner = outer.get('body')
         if isinstance(inner, str):
             try:

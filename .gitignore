@@ -15,6 +15,9 @@ venv/
 # 版本检查缓存（运行时生成）
 version_cache.json
 
+# 上游请求元数据日志（vwater._event 生成，只有路径/状态码/长度，无用户数据）
+events.log
+
 # 无状态模式的会话密钥（本地生成，绝不提交）
 state.key
 
