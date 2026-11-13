@@ -20,3 +20,10 @@ state.key
 
 # 合并部署时从安卓仓库 site/ 复制来的官网快照（发版时重新生成，不入库）
 site/
+
+# 静态资源构建产物（build-assets.mjs 生成，不入库）
+cloudflare/public/
+
+# wrangler 本地缓存与临时文件（含账号信息）
+cloudflare/.wrangler/
+.wrangler/

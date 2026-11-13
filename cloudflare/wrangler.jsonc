@@ -1,0 +1,13 @@
+{
+  "name": "yuezao-edge",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    // 默认的 auto-trailing-slash 会把 /privacy.html 307 跳到 /privacy，
+    // 而站内链接、二维码、发出去的旧链接统统带 .html。关掉，按原路径找文件。
+    "html_handling": "none"
+  }
+}
