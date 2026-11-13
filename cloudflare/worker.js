@@ -44,6 +44,14 @@ export default {
     const url = new URL(request.url);
     const host = url.hostname.toLowerCase();
 
+    /* 明文 HTTP 一律 301 到 HTTPS。实测（check-host 8 节点）裸 http:// 会直接
+       200 出页面——CF 的「Always Use HTTPS」默认关闭，而浏览器对明文 HTTP
+       一律标「不安全」。在 Worker 里拦比在面板开全局开关更可控：路径与
+       query 原样保留，其他 Host 也不受影响。 */
+    if (url.protocol === 'http:') {
+      return Response.redirect('https://' + url.host + url.pathname + url.search, 301);
+    }
+
     if (REDIRECT_HOSTS.has(host)) {
       const to = new URL(url.pathname + url.search, 'https://' + [...SITE_HOSTS][0]);
       return Response.redirect(to.toString(), 301);
