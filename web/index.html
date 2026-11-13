@@ -296,9 +296,15 @@ input[type=tel]::placeholder{color:var(--ink3)}
 
 <header>
   <div class="brand">
-    <div class="logo">浴</div>
+    <!-- 和桌面图标、安卓端同一个水滴：渐变底由 .logo 提供，这里只画白色水滴 -->
+    <div class="logo">
+      <svg viewBox="0 0 108 108" width="26" height="26" aria-hidden="true">
+        <path fill="#fff" d="M54,20 C54,20 33,48 33,67 A21,21 0 0,0 75,67 C75,48 54,20 54,20 Z"/>
+        <path fill="#4FC3F7" fill-opacity=".55" d="M45,58 C45,50 50,42 54,36 C58,42 62,50 62,58 A8.5,8.5 0 0,1 45,58 Z"/>
+      </svg>
+    </div>
     <div>
-      <h1 id="hName">洗澡</h1>
+      <h1 id="hName">你好</h1>
       <div class="sub" id="hSub">正在连接…</div>
     </div>
   </div>
@@ -805,6 +811,28 @@ function serverNow() {
   return new Date(Date.now() + state.serverOffset);
 }
 function fmtClock(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+
+/* 顶部问候语，按【服务端】时间分时段。
+   与安卓端一致：原来这里写「姓名 · 洗澡」，姓名在「我的」里已经有了，
+   标题重复一次没有新信息；问候语至少随时间变化，也顺带把时钟校准结果表达出来
+   （校准失败时 serverOffset 为 0、退回本机时间，问候语不会因此消失）。 */
+function greeting() {
+  const h = serverNow().getHours();
+  if (h < 5) return '夜深了';
+  if (h < 9) return '早上好';
+  if (h < 12) return '上午好';
+  if (h < 14) return '中午好';
+  if (h < 18) return '下午好';
+  if (h < 23) return '晚上好';
+  return '夜深了';
+}
+
+/* 手机号掩码：11 位才打码，长度异常原样返回，不做猜测 */
+function maskPhone(p) {
+  const s = String(p || '').replace(/\s+/g, '');
+  if (/^\d{11}$/.test(s)) return s.slice(0, 3) + '****' + s.slice(7);
+  return s;
+}
 function ceilMinute(d) {
   const x = new Date(d);
   x.setSeconds(0, 0);
@@ -1129,8 +1157,11 @@ async function loadAll() {
       state.serverCalibrated = false;
       $('#srvTime').textContent = '服务器时间未知 · 按本机时间估算';
     }
-    $('#hName').textContent = state.cfg.name ? state.cfg.name + ' · 洗澡' : '洗澡';
-    $('#hSub').textContent = state.cfg.school || '';
+    /* 顶部格式：服务器下发的姓名 + 问候语，如「张三，下午好」；未登录只显示问候语 */
+    const nm = (state.cfg || {}).name;
+    $('#hName').textContent = nm ? (nm + '，' + greeting()) : greeting();
+    /* 副标题：掩码手机号优先；没有就退回学校名，避免空着一行 */
+    $('#hSub').textContent = maskPhone((state.cfg || {}).phone) || (state.cfg || {}).school || '';
     renderBalance(); renderOrder(); renderRooms(); renderMe();
     scheduleRecPrefetch();          /* 会话已热，顺手把记录页的当前月拉下来 */
   } catch (e) {
@@ -1159,6 +1190,7 @@ async function loadAll() {
       if (bg) bg.onclick = openGuide;
       $('#orderCard').classList.add('hidden');
       $('#balNum').textContent = '—';
+      $('#hName').textContent = greeting();
       $('#hSub').textContent = '';
       /* 登录态失效：先给一条明确提示，再弹登录框，避免打开 App 不知道发生了什么 */
       if (!__autoLoginShown) {
