@@ -28,29 +28,41 @@ Windows 上也可以直接双击 `启动.bat`（会调用 `server.py`）。
 
 启动后终端会打印局域网地址，例如 `http://192.168.1.20:8770`，**手机连同一个 WiFi** 用浏览器打开即可。
 
-## 在线部署（官网 + 网页端共用一个地址）
+## 在线部署（Cloudflare 边缘 + 国内上游）
 
-WorkBuddy Sites 在这个账号下**只有一个发布应用**：官网和网页端没法各自拿一个链接，单独部署任何一个都会覆盖另一个（实测过）。解决办法是让同一个 Python 服务同时托管两者：
+现在是**两个域名、两层服务**，官网与网页端不再共用一个地址：
 
-| 路径 | 内容 |
-| --- | --- |
-| `/` 及官网资源（`style.css`、`privacy.html`、`wechat-reward.png`…） | 官网静态页 |
-| `/web/` | 网页端界面（官网下载区的「不想装 APK？」入口指向这里） |
-| `/api/*` | 网页端后端：登录、业务、版本检查 |
+| 域名 / 路径 | 由谁响应 | 内容 |
+| --- | --- | --- |
+| `yuezao.org` | Cloudflare Worker 静态资源直出 | 官网：`index.html`、`privacy.html`、`changelog.html`、`feedback.html`、`policy.json`、`latest.json`、APK |
+| `web.yuezao.org` | 首页外壳同样边缘直出，`/api/*` 反代到国内上游 | 网页端单页界面 + 登录 / 业务 / 版本检查接口 |
+| `www.yuezao.org` | 301 → `yuezao.org` | 纯跳转 |
+| `yuezao.org/web`、`/web/` | 301 → `web.yuezao.org/` | 兼容早期官网的绝对路径、老书签与二维码 |
 
-**部署前先生成官网快照**（`site/` 已被 `.gitignore`，不入库；官网文件仍以安卓仓库的 `site/` 为唯一维护点）：
+**为什么这样分**：官网是纯静态、无登录态的文件，放边缘直出省掉「边缘 → 亚洲上游 → 回」这一趟，Python 服务挂了官网也照常打得开。网页端首页外壳是 118 KB 的纯前端单文件、内容不随用户变化，同样放边缘；上游只剩 `/api/*`。
+
+**一条不能动的红线**：与完美校园**直接对话**的那一层必须留在国内上游——完美校园看到的是上游出口 IP（境内）。若把 `server.py` 搬进 Cloudflare，出站会变成境外 PoP，容易被判盗号。所以「以后把所有网页迁到 Workers / GitHub Pages」只落实了静态部分，业务层留在国内是设计，不是遗留。
+
+**部署官网静态与网页端外壳**（官网文件仍以安卓仓库的 `site/` 为唯一维护点）：
 
 ```bash
-cp -r ../android-app/site/. site/
+cd cloudflare
+node build-assets.mjs     # 复制 site/ 快照 + 生成 web-shell.html / _headers；顺带校验隐私政策三处是否同步
+npx wrangler deploy
 ```
 
-`server.py` 启动时检测 `site/`：存在就按上表路由，不存在就全部走 `web/`，本地开发行为不变。
+`cloudflare/public/` 是构建产物，已进 `.gitignore`。`wrangler.jsonc` 的 `html_handling: "none"` 不能改：默认会把 `/privacy.html` 307 到 `/privacy`，而站内链接与已发出的二维码都带 `.html`。改 Worker 或官网一律走这条命令，**单独部署上游不会更新官网**。
 
-容器会注入 `PORT` 环境变量，`server.py` 优先读它；本地仍支持 `python server.py 8770`。启动命令：
+**部署上游**（国内 WorkBuddy Sites，仍是这个 Python 服务）：
 
 ```bash
+cp -r ../android-app/site/. site/     # 本地/容器用的快照，site/ 不入库
 BATH_STATELESS=1 BATH_COOKIE_SECURE=1 BATH_STATE_KEY=<64 位十六进制> python3 server.py
 ```
+
+容器会注入 `PORT`，`server.py` 优先读它；本地仍支持 `python server.py 8770`。启动时检测到 `site/` 就按本地路由提供静态页，不存在则全部走 `web/`，本地开发行为不变。**分享码只在直连上游时需要**，Worker 的 `proxy()` 会自动补码，公开域名全链路裸链可达。
+
+> ⚠️ **别把 `android-app/site/` 用 static 方式单独部署到上游那个发布应用**——会把 Python 服务顶掉，`/api/*` 全部 404。官网改动走上面的 `build-assets.mjs + wrangler deploy`。
 
 ### 服务器不存储任何数据
 
@@ -67,27 +79,29 @@ BATH_STATELESS=1 BATH_COOKIE_SECURE=1 BATH_STATE_KEY=<64 位十六进制> python
 
 **必须开无状态模式**：绝对不要用默认的「单人自用」模式对外服务——票据会写进 `config.json`，换个人登录就互相覆盖。实现说明见 `docs/STATELESS.md`。
 
-> ⚠️ **上线合并版之后，不要再单独用 static 方式部署 `android-app/site/`**——那会把 Python 服务顶掉，`/web/` 与 `/api/*` 全部 404。官网有改动时，重新复制快照并重新部署**这个目录**。
-
 **注意事项**：
 
-- 分享链接带分享码，不带码访问会 403；**只发给本人或信任的人**，不要发到公开群。
-- 这个服务会向校园水控接口转发请求（含发送短信验证码），任何拿到链接的人都能触发。别公开扩散。
+- 公开域名（`yuezao.org`、`web.yuezao.org`）不需要分享码，可直接对外分享；上游直连地址 `zhishui-site.app.workbuddy.host` 才带码，**不要把带码的上游链接发到公开群**。
+- 网页端经上游向校园水控接口转发请求（含发送短信验证码），但服务端不保存账号数据，票据加密后留在用户浏览器 cookie。上游出口仍是集中式的，规模上去有风控风险，见文末。
 - 云端不下发任何账号信息；不要把 `config.json`、`state.key` 或真实票据放进部署目录。
-- 不想用了可在「设置—数据管理—发布的应用」里下线，链接立即失效。
+- 不想用了可在「设置—数据管理—发布的应用」里下线上游；官网与网页端外壳由 Cloudflare 侧控制。
 
-> 关于「为什么不做服务全校的在线版」，见文末。带分享码、只给本人或少数人的**受限外链**不属于那种形态，但「出口集中」的风险仍然在，规模一大就该收回。
+> 关于「为什么不做服务全校的在线版」，见文末。网页端虽已公开可达，仍是「无状态转发、数据只在用户设备」的形态；本节论点不变，规模一大就该重新评估。
 
 ## 目录结构
 
 ```
-server.py       HTTP 服务（静态页 + JSON 接口 + 网页登录/退出 + 版本检查）
+server.py       上游 HTTP 服务（/api/* JSON 接口 + 本地静态页 + 网页登录/退出 + 版本检查）
 statebox.py     无状态会话：票据加密进 cookie，服务端不保存（多人部署时启用）
 vwater.py       智慧用水业务的协议实现（会话、预约、记录、限时限额）
 wxlogin.py      登录流程实现（建立会话、参数加密、签名）
 login.py        登录命令行：拿 session 并写入 config.json
 web/index.html  单页界面（内含网页端专属隐私政策模板）
-site/           官网静态页快照（部署前从安卓仓库复制，已在 .gitignore 中）
+site/           官网静态页快照（上游本地/容器部署用；线上由边缘直出，已在 .gitignore 中）
+cloudflare/worker.js        边缘路由：三域名分流、静态直出、/api/* 反代、http→https
+cloudflare/build-assets.mjs 生成 public/ 快照并校验隐私政策一致性
+cloudflare/wrangler.jsonc   Workers 配置（assets 绑定、html_handling: none）
+cloudflare/public/          构建产物（已在 .gitignore 中）
 config.json     登录后生成，含票据和个人信息（已在 .gitignore 中）
 docs/STATELESS.md  无状态会话的实现说明与移植指南
 CONTRIBUTING.md 贡献说明
@@ -187,6 +201,6 @@ CONTRIBUTING.md 贡献说明
 
 所以如果有人想把它改成「注册即用」的在线服务，技术上要先解决会话隔离，架构上要面对出口集中，两关都不好过——**这条路不建议走**。
 
-「在线部署」一节里的带分享码外链，是**给自己或少数信任的人**用的受限入口，不是面向全校的公共服务；分享码本身就是访问控制。但出口集中的风险不会因此消失，一旦链接扩散、使用人数上去，就该及时收回。
+现在 `web.yuezao.org` 是公开可达的网页端，但它仍是**无状态转发**：票据只在用户浏览器里，服务端不保存任何账号数据，登录态也不由上运营。这不等于「一个服务器服务全校」——出口集中的风险不会消失，链接扩散、使用人数上去之后，本节说的限流依然会落在那个上游 IP 上，届时该重新评估的就是这一层。
 
 本仓库不含任何真实账号数据；`config.json` 是本地生成的文件，不会被提交。

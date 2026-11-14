@@ -12,4 +12,4 @@
 
 请不要修改 `LICENSE` 与项目内的声明文件；也不要把 `config.json`、`state.key` 或任何真实票据提交进仓库。
 
-**公网部署必须开无状态模式**（`BATH_STATELESS=1`），让票据加密后留在浏览器 cookie、服务端不保存账号数据——见 `docs/STATELESS.md` 与 README 的「在线部署」一节。
+**公网部署必须开无状态模式**（`BATH_STATELESS=1`），让票据加密后留在浏览器 cookie、服务端不保存账号数据——见 `docs/STATELESS.md` 与 README 的「在线部署（Cloudflare 边缘 + 国内上游）」一节。
