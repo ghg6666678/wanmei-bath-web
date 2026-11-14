@@ -34,7 +34,7 @@ Windows 上也可以直接双击 `启动.bat`（会调用 `server.py`）。
 
 | 域名 / 路径 | 由谁响应 | 内容 |
 | --- | --- | --- |
-| `yuezao.org` | Cloudflare Worker 静态资源直出 | 官网：`index.html`、`privacy.html`、`changelog.html`、`feedback.html`、`policy.json`、`latest.json`、APK |
+| `yuezao.org` | Cloudflare Worker 静态资源直出 | 官网：`index.html`、`privacy.html`（政策分流入口）、`privacy-android.html`、`privacy-web.html`、`changelog.html`、`feedback.html`、`policy.json`、`policy-web.json`、`latest.json`、APK |
 | `web.yuezao.org` | 首页外壳同样边缘直出，`/api/*` 反代到国内上游 | 网页端单页界面 + 登录 / 业务 / 版本检查接口 |
 | `www.yuezao.org` | 301 → `yuezao.org` | 纯跳转 |
 | `yuezao.org/web`、`/web/` | 301 → `web.yuezao.org/` | 兼容早期官网的绝对路径、老书签与二维码 |
@@ -47,7 +47,7 @@ Windows 上也可以直接双击 `启动.bat`（会调用 `server.py`）。
 
 ```bash
 cd cloudflare
-node build-assets.mjs     # 复制 site/ 快照 + 生成 web-shell.html / _headers；顺带校验隐私政策三处是否同步
+node build-assets.mjs     # 复制 site/ 快照 + 生成 web-shell.html / _headers；顺带校验隐私政策五处产物是否同步
 npx wrangler deploy
 ```
 

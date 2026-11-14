@@ -27,25 +27,32 @@ const out = join(here, 'public');
  * 每份产物里都带着「生成时那段正文的 sha256」，这里按同样的算法重算一次。
  *
  * 算法必须与 gen_policy.py 的 fingerprint() 逐字节一致：
- *   sha256([ver, date, applies, html].join('\n')).slice(0, 12)
+ *   sha256([a.ver, a.date, a.applies, a.html,
+ *           w.ver, w.date, w.applies, w.html].join('\n')).slice(0, 12)
+ * 两份政策共用组合指纹：任一份变动，五处产物一起过期。
  */
-function policyHash(json) {
-  const raw = [json.ver, json.date, json.applies, json.html].map((v) => String(v ?? '')).join('\n');
+function policyHash(a, w) {
+  const fields = [a.ver, a.date, a.applies, a.html, w.ver, w.date, w.applies, w.html];
+  const raw = fields.map((v) => String(v ?? '')).join('\n');
   return createHash('sha256').update(raw, 'utf8').digest('hex').slice(0, 12);
 }
 
 function stampedHash(file) {
   const text = readFileSync(file, 'utf8');
-  const m = /<!-- POLICY:BEGIN[^>]*sha256=([0-9a-f]{12}) -->/.exec(text);
+  const m = /<!-- POLICY:(?:INDEX:)?BEGIN[^>]*sha256=([0-9a-f]{12}) -->/.exec(text);
   return m ? m[1] : null;
 }
 
 try {
-  const policy = JSON.parse(readFileSync(join(src, 'policy.json'), 'utf8'));
-  const want = policyHash(policy);
+  const android = JSON.parse(readFileSync(join(src, 'policy.json'), 'utf8'));
+  const web = JSON.parse(readFileSync(join(src, 'policy-web.json'), 'utf8'));
+  const want = policyHash(android, web);
+  const appRoot = join(here, '..', '..', 'android-app');
   const targets = [
-    ['官网页面', join(src, 'privacy.html')],
-    ['应用内置文本', join(here, '..', '..', 'android-app', 'assets', 'index.html')]
+    ['分流入口页', join(src, 'privacy.html')],
+    ['Android 政策页', join(src, 'privacy-android.html')],
+    ['网页端政策页', join(src, 'privacy-web.html')],
+    ['应用内置文本', join(appRoot, 'assets', 'index.html')]
   ];
   const stale = [];
   for (const [label, file] of targets) {
@@ -58,7 +65,7 @@ try {
     console.error('\n修：cd android-app && python tools/gen_policy.py');
     process.exit(1);
   }
-  console.log(`隐私政策一致：v${policy.ver}，sha256=${want}`);
+  console.log(`隐私政策一致：Android v${android.ver} / 网页端 v${web.ver}，sha256=${want}`);
 } catch (e) {
   console.error(`隐私政策检查失败：${e.message}`);
   console.error('（先跑 android-app/tools/gen_policy.py，再回来部署）');
@@ -106,6 +113,21 @@ await writeFile(
     '  Cache-Control: no-store',
     '',
     '/policy.json',
+    '  Cache-Control: no-store',
+    '',
+    '/policy-web.json',
+    '  Cache-Control: no-store',
+    '',
+    // 政策页被缓存住旧条文，和 policy.json 被缓存一样危险：用户「同意」的是
+    // 一份已经作废的文本，界面却完全正常。入口页也要一起禁，否则卡片上的
+    // 版本号会停在旧值。
+    '/privacy.html',
+    '  Cache-Control: no-store',
+    '',
+    '/privacy-android.html',
+    '  Cache-Control: no-store',
+    '',
+    '/privacy-web.html',
     '  Cache-Control: no-store',
     '',
     '/*.apk',
