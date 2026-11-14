@@ -861,6 +861,18 @@ window.addEventListener('unhandledrejection', e => {
   diagAdd('js', 'unhandledrejection', (r && (r.stack || r.message)) || String(r || ''), '');
 });
 
+
+/* 同一位置 + 同一句话只记一次（默认 10 分钟）。
+   断网时后台会自动刷新，每次都失败；不设闸门，几条真崩溃很快就被「又断网了」挤出窗口。 */
+const NET_HUMAN = /^(网络未连接|网络连接超时，请重试|网络不太稳定，请稍后重试)$/;
+const __netGate = {};
+function netLogGate(key, gapMs) {
+  const now = Date.now(), gap = gapMs || 600000;
+  if (__netGate[key] && now - __netGate[key] < gap) return false;
+  __netGate[key] = now;
+  return true;
+}
+
 function netText(msg, where) {
   const s = String(msg == null ? '' : msg).trim();
   if (!s) return s;
@@ -876,7 +888,16 @@ function netText(msg, where) {
   else if (/SocketTimeout|Read timed out|connect timed out|timed out|ETIMEDOUT|ERR_TIMED_OUT/i.test(s)) out = '网络连接超时，请重试';
   else if (technicalText(s)) out = '网络不太稳定，请稍后重试';
   /* 改写过 = 原文对用户没意义，但对排查有价值：进诊断日志，不上屏。 */
-  if (out !== s) diagAdd('net', where, s, out);
+  if (out !== s) {
+    diagAdd('net', where, s, out);
+    return out;
+  }
+  /* 原样返回的也要分两种：原生断网时**不产生异常**，直接回「网络未连接」——
+     这条以前完全不留痕，诊断页里就看不到「断网」这回事（第一版就漏在这）。
+     业务错误（验证码错误之类）不记，那不是故障。 */
+  if (NET_HUMAN.test(s) && netLogGate('h:' + (where || '') + ':' + s)) {
+    diagAdd('net', where, s, '');
+  }
   return out;
 }
 
@@ -908,7 +929,12 @@ window.__apiDone = function (id, json) {
   /* 与 Android 端同口径：解析坏了也要给用户一句人话，不是开发期措辞 */
   try { j = JSON.parse(json); } catch (e) { return p.reject(new Error('网络不太稳定，请稍后重试')); }
   /* 原生桥的失败原因统一过 netText（与 Android 端 assets/index.html 一致） */
-  if (!j.ok && j.error) return p.reject(new Error(netText(j.error, 'api ' + (p.path || ''))));
+  /* 原生侧（App 内嵌 WebView）的 error 已经被翻成人话了：原样抛出，交给上层统一记一次。
+     这里再记一笔，诊断页里就会出现两条指向同一故障的记录。 */
+  if (!j.ok && j.error) {
+    const m = String(j.error);
+    return p.reject(new Error(NET_HUMAN.test(m) ? m : netText(m, 'api ' + (p.path || ''))));
+  }
   p.resolve(j);
 };
 
