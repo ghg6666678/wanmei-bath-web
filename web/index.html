@@ -244,7 +244,12 @@ input[type=text]:disabled{opacity:.45}
 .numwarn.calm{background:rgba(16,24,40,.04);border-color:var(--line)}
 .numwarn.calm .nw-ico{background:var(--ink3)}
 .numwarn.calm .nw-t,.numwarn.calm .nw-d{color:var(--ink2)}
+.diagbox{max-height:46vh;overflow-y:auto;overflow-x:hidden;background:rgba(16,24,40,.045);
+  border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:4px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.65;
+  color:var(--ink2);white-space:pre-wrap;overflow-wrap:anywhere}
 @media (prefers-color-scheme:dark){
+  .diagbox{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.13)}
   input[type=range]::-webkit-slider-thumb{background:#1b2533}
   .numerr.bad{color:#ff8a80}
   .numerr.good{color:#8ab4f8}
@@ -451,6 +456,13 @@ input[type=tel]::placeholder{color:var(--ink3)}
         <div class="grow">
           <div class="name">问题反馈</div>
           <div class="info">不用 GitHub 账号，直接留言给作者</div>
+        </div>
+        <div class="val"><i>›</i></div>
+      </div>
+      <div class="setrow" id="rowDiag">
+        <div class="grow">
+          <div class="name">诊断信息</div>
+          <div class="info">出问题时复制给作者，帮他定位（不联网、不上传）</div>
         </div>
         <div class="val"><i>›</i></div>
       </div>
@@ -765,6 +777,16 @@ input[type=tel]::placeholder{color:var(--ink3)}
   <p><strong>用途</strong>：仅用于定位问题和回复，不用于广告或用户画像；数据存于境内的 WorkBuddy 云服务，提交请求会经过 Cloudflare 边缘节点，页面还会从 jsDelivr 加载 SDK。<strong>可见范围</strong>：网页端没有读取权限，只有开发者能查看。请不要填写账号密码、短信验证码、身份证号等敏感信息。</p>
 </template>
 
+<div class="sheet" id="diagSheet">
+  <div class="bar-h"></div>
+  <h3>诊断信息</h3>
+  <div class="hint">这些内容只在本机生成，不联网、不上传，也不含手机号和姓名。出问题时点「复制」，粘到反馈里——界面上只说「网络未连接」，这里才有原始原因。</div>
+  <div class="diagbox" id="diagBody"></div>
+  <div style="display:flex;gap:9px;margin-top:12px">
+    <button class="btn ghost" style="flex:1" id="diagClose">关闭</button>
+    <button class="btn" style="flex:1.4" id="diagCopy">复制</button>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -784,7 +806,33 @@ function toast(msg, err) {
    浏览器抛的是「Failed to fetch」「Load failed」，对用户没有意义——
    他要的只有「怎么了」和「怎么办」。只改写**网络层**报错，
    服务端返回的业务错误（「验证码错误」「登录已失效」）原样保留。 */
-function netText(msg) {
+/* ---------- 诊断日志（与 Android 端同一套） ----------
+   界面上只说人话，原始信息留在这里：用户看不懂 Exception，但要排查问题时，被藏起来的
+   那句原文才是关键——`Failed to fetch` 是断网、`Value <!DOCTYPE` 是校园网认证页、
+   `TypeError: x is not a function` 才是我们自己的 bug。
+   环形缓冲，只在内存里，不落盘、不联网；用户在「设置 → 应用 → 诊断信息」里点复制才离开设备。 */
+const DIAG_MAX = 60;
+const __diag = [];
+function diagAdd(kind, where, raw, shown) {
+  try {
+    __diag.push({
+      t: Date.now(), kind: kind || '', where: where || '',
+      raw: String(raw == null ? '' : raw).slice(0, 500),
+      shown: String(shown == null ? '' : shown)
+    });
+    if (__diag.length > DIAG_MAX) __diag.splice(0, __diag.length - DIAG_MAX);
+  } catch (e) { }
+}
+window.addEventListener('error', e => {
+  diagAdd('js', 'onerror', (e && e.message ? e.message : '') +
+    ' @' + String((e && e.filename) || '').split('/').pop() + ':' + ((e && e.lineno) || 0), '');
+});
+window.addEventListener('unhandledrejection', e => {
+  const r = e && e.reason;
+  diagAdd('js', 'unhandledrejection', (r && (r.stack || r.message)) || String(r || ''), '');
+});
+
+function netText(msg, where) {
   const s = String(msg == null ? '' : msg).trim();
   if (!s) return s;
   /* 三层，与 Android 端 MainActivity.msg() 对齐：
@@ -793,15 +841,14 @@ function netText(msg) {
      ③ 兜底：像异常类名 / 技术细节的，一律换成一句人话——断网时浏览器的
         报错形状五花八门（Failed to fetch、net::ERR_*、JSON 解析失败），
         一条都不该出现在界面上。 */
-  if (/网络未连接|网络连接超时|网络不太稳定|登录已失效|还没有登录/.test(s)) return s;
-  if (/UnknownHost|Unable to resolve host|No address associated|ConnectException|NoRouteToHost|PortUnreachable|Network is unreachable|ENETUNREACH|ECONNREFUSED|ECONNRESET|Connection reset|Broken pipe|Failed to fetch|NetworkError|Load failed|ERR_INTERNET|ERR_NAME_NOT_RESOLVED|ERR_NETWORK_CHANGED|ERR_CONNECTION/i.test(s)) {
-    return '网络未连接';
-  }
-  if (/SocketTimeout|Read timed out|connect timed out|timed out|ETIMEDOUT|ERR_TIMED_OUT/i.test(s)) {
-    return '网络连接超时，请重试';
-  }
-  if (technicalText(s)) return '网络不太稳定，请稍后重试';
-  return s;
+  let out = s;
+  if (/网络未连接|网络连接超时|网络不太稳定|登录已失效|还没有登录/.test(s)) out = s;
+  else if (/UnknownHost|Unable to resolve host|No address associated|ConnectException|NoRouteToHost|PortUnreachable|Network is unreachable|ENETUNREACH|ECONNREFUSED|ECONNRESET|Connection reset|Broken pipe|Failed to fetch|NetworkError|Load failed|ERR_INTERNET|ERR_NAME_NOT_RESOLVED|ERR_NETWORK_CHANGED|ERR_CONNECTION/i.test(s)) out = '网络未连接';
+  else if (/SocketTimeout|Read timed out|connect timed out|timed out|ETIMEDOUT|ERR_TIMED_OUT/i.test(s)) out = '网络连接超时，请重试';
+  else if (technicalText(s)) out = '网络不太稳定，请稍后重试';
+  /* 改写过 = 原文对用户没意义，但对排查有价值：进诊断日志，不上屏。 */
+  if (out !== s) diagAdd('net', where, s, out);
+  return out;
 }
 
 /* 文本像不像「异常类名 + 技术细节」。像，就不许直接展示给用户。
@@ -832,7 +879,7 @@ window.__apiDone = function (id, json) {
   /* 与 Android 端同口径：解析坏了也要给用户一句人话，不是开发期措辞 */
   try { j = JSON.parse(json); } catch (e) { return p.reject(new Error('网络不太稳定，请稍后重试')); }
   /* 原生桥的失败原因统一过 netText（与 Android 端 assets/index.html 一致） */
-  if (!j.ok && j.error) return p.reject(new Error(netText(j.error)));
+  if (!j.ok && j.error) return p.reject(new Error(netText(j.error, 'api ' + (p.path || ''))));
   p.resolve(j);
 };
 
@@ -851,7 +898,7 @@ function api(path, opt) {
        否则「登录态已失效」这类提示会被吞成通用的「返回解析失败」。 */
     if (offlineNow()) return Promise.reject(new Error('网络未连接'));
     return fetch(path, Object.assign({headers: {'Content-Type': 'application/json'}}, o))
-      .catch(e => { throw new Error(netText(e && e.message) || '网络请求失败'); })
+      .catch(e => { throw new Error(netText(e && e.message, 'fetch ' + method + ' ' + path) || '网络请求失败'); })
       .then(r => {
         /* 顺手记下响应头里的 Date（HTTP 强制头），作为「服务器当前时刻」。
            浏览器/原生 WebView 都能读到；拿它校准比等官方下发 nowdate 可靠。 */
@@ -871,7 +918,7 @@ function api(path, opt) {
   }
   return new Promise((resolve, reject) => {
     const id = 'r' + (++__seq);
-    __pending[id] = {resolve, reject};
+    __pending[id] = {resolve, reject, path: method + ' ' + path};
     try { nat.apiAsync(id, path, method, body); }
     catch (e) { delete __pending[id]; reject(new Error('调用原生失败')); }
   });
@@ -882,11 +929,16 @@ function nativeCall(name) {
   const nat = __native();
   const extra = Array.prototype.slice.call(arguments, 1);
   if (!nat || !nat[name]) {
+    /* 这支 fetch 以前一点兜底都没有：断网时 reject 的是 TypeError('Failed to fetch')，
+       发验证码 / 登录的调用方直接把它 toast 出来。网断得越干脆，用户越会看到英文。
+       现在与 api() 同口径：先判离线、再归一化、解析失败也不吐技术措辞。 */
+    if (offlineNow()) return Promise.reject(new Error('网络未连接'));
     return fetch('/api/native', {method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({name: name, args: extra})})
-      .then(r => r.json())
-      .then(j => { if (!j.ok) throw new Error(j.error || '操作失败'); return j.data; });
+      .catch(e => { throw new Error(netText(e && e.message, 'native ' + name) || '网络未连接'); })
+      .then(r => r.json().catch(() => { throw new Error('网络不太稳定，请稍后重试'); }))
+      .then(j => { if (!j.ok) throw new Error(netText(j.error, 'native ' + name) || '操作失败'); return j.data; });
   }
   return new Promise((resolve, reject) => {
     const id = 'n' + (++__seq);
@@ -1290,7 +1342,7 @@ async function loadAll() {
     scheduleRecPrefetch();          /* 会话已热，顺手把记录页的当前月拉下来 */
   } catch (e) {
     /* 断网不该说成「加载失败」：那不是失败，只是还没连上。 */
-    const msg = netText(String(e.message || e));
+    const msg = netText(String(e.message || e), 'loadAll');
     if (/登录|token|票据/i.test(msg)) {
       const logged = (state.cfg || {}).hasToken;
       /* 只有「本来有登录态、现在失效了」才值得再问一次 config（要拿 needCard 决定
@@ -1987,6 +2039,83 @@ $('#payCopy').onclick = () => {
   } else legacy();
 };
 
+/* 通用复制：诊断信息这类长文本用。与 payCopy 同一套兜底——非 https 或旧 WebView
+   没有 clipboard API 时退回 textarea + execCommand。 */
+function copyAny(text, okMsg) {
+  const ok = () => toast(okMsg || '已复制');
+  const bad = () => toast('复制失败，请长按选中文本手动复制', true);
+  const legacy = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    let done = false;
+    try { done = document.execCommand('copy'); } catch (e) { done = false; }
+    document.body.removeChild(ta);
+    done ? ok() : bad();
+  };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(ok, legacy);
+  else legacy();
+}
+
+/* ---------- 诊断信息页（与 Android 端同一套结构，字段换成浏览器环境） ----------
+   网页端没有原生桥，设备信息只能从 navigator 拿：UA 里已经带了系统与浏览器版本，
+   再补上屏幕、时区、浏览器自报的联网状态和连接类型。 */
+function diagClock(ms) {
+  const d = new Date(ms), p = n => String(n).padStart(2, '0');
+  return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+function diagStamp(ms) {
+  const d = new Date(ms), p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + diagClock(ms);
+}
+function diagZone() {
+  const off = -new Date().getTimezoneOffset(), abs = Math.abs(off);
+  return 'UTC' + (off >= 0 ? '+' : '-') + Math.floor(abs / 60) + ':' + String(abs % 60).padStart(2, '0');
+}
+function diagNet() {
+  const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection || {};
+  const parts = [navigator.onLine === false ? '浏览器报告离线' : '浏览器报告在线'];
+  if (c.effectiveType) parts.push(c.effectiveType);
+  if (typeof c.downlink === 'number' && c.downlink > 0) parts.push('约 ' + c.downlink + 'Mb/s');
+  if (c.saveData) parts.push('省流量模式');
+  return parts.join(' · ');
+}
+function diagLines() {
+  const L = [];
+  L.push('【约澡 诊断信息（网页端）】');
+  L.push('生成时间   ' + diagStamp(Date.now()) + '（' + diagZone() + '）');
+  L.push('应用版本   网页端 ' + WEB_BUILD);
+  L.push('环境       ' + (navigator.platform || '—') + ' · 屏幕 ' + screen.width + '×' + screen.height +
+         '@' + (window.devicePixelRatio || 1) + ' · ' + (navigator.language || '—'));
+  L.push('UA         ' + String(navigator.userAgent || '').slice(0, 160));
+  L.push('网络       ' + diagNet());
+  L.push('登录态     ' + ((state.cfg || {}).hasToken ? '已登录' : '未登录') + '（这里不记录手机号与姓名）');
+  L.push('服务器时间 ' + (state.serverCalibrated
+      ? '已校准 ' + (state.serverOffset >= 0 ? '+' : '') + (state.serverOffset / 1000).toFixed(1) + ' 秒'
+      : '未知，按本机时间估算'));
+  L.push('已记录事件 ' + __diag.length + ' 条（上限 ' + DIAG_MAX + '，只在本机内存里）');
+  L.push('');
+  L.push('—— 最近事件（新的在上）——');
+  if (!__diag.length) L.push('无');
+  __diag.slice().reverse().forEach(e => {
+    let line = diagClock(e.t) + ' [' + e.kind + ']' + (e.where ? ' ' + e.where : '') + '：' +
+               String(e.raw).replace(/\s+/g, ' ');
+    if (e.shown) line += '   → ' + e.shown;
+    L.push(line.length > 300 ? line.slice(0, 297) + '…' : line);
+  });
+  return L;
+}
+let __diagText = '';
+function renderDiag() {
+  const L = diagLines();
+  __diagText = L.join('\n');
+  const box = $('#diagBody');
+  box.textContent = __diagText;
+  box.scrollTop = 0;
+}
+
 /* ---------- 弹层/导航 ---------- */
 /* locked 的弹层不允许「被动关闭」——点外面、下拉都不关，
    只能点弹层自己的按钮。用于首次引导：误触关闭就再也看不到了。 */
@@ -2407,6 +2536,10 @@ $('#btnSettingsBack').onclick = () => {
 $('#rowSite').onclick = () => openExternal(SITE_URL);
 $('#rowPolicy').onclick = () => showPolicy(false);
 $('#rowFeedback').onclick = () => openExternal(FEEDBACK_URL);
+$('#rowDiag').onclick = () => { showSheet('#diagSheet'); renderDiag(); };
+$('#diagClose').onclick = () => hideSheet();
+/* 每次打开都重新收集：复现完再打开一次，就是最新的现场 */
+$('#diagCopy').onclick = () => { if (!__diagText) renderDiag(); copyAny(__diagText, '已复制，粘到反馈里就行'); };
 
 /* Android 返回键：先关弹层，再回我的/首页，最后退出 */
 window.__onBack = function () {
@@ -2474,6 +2607,7 @@ const WEB_LOG = [
   { v: '2026.11.15', items: [
     '断网时不再弹原始报错：首页直接说明「网络未连接」，连上后刷新即可',
     '刷新失败不再清空已经显示的浴室列表，旧内容留在屏幕上',
+    '设置里新增「诊断信息」：出问题时复制给作者，比一句「用不了」有用得多',
   ] },
   { v: '2026.11.14', items: [
     '隐私政策更正：补上 Cloudflare 边缘网络这个通信方，修正「不涉及跨境」的表述',
