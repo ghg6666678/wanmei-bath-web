@@ -44,7 +44,10 @@ await cp(webSrc, join(out, 'web-shell.html'));
 
 /* latest.json 决定「有没有新版本」，一旦被边缘缓存，客户端会一直看到旧版本号，
    表现为「发了版但没人收到更新提示」，而且不会报任何错。所以单独禁缓存。
-   web-shell.html 同理：外壳里带着版本号和更新日志，缓存住就发不出去。 */
+   web-shell.html 同理：外壳里带着版本号和更新日志，缓存住就发不出去。
+   policy.json 更严格：它是隐私政策的正文与版本号，客户端按「远程版本更高就
+   重新征求同意」处理——一份被缓存的旧文本会让新用户「同意」作废的条款，
+   而界面看起来完全正常，属于最难发现的错。 */
 await writeFile(
   join(out, '_headers'),
   [
@@ -52,6 +55,9 @@ await writeFile(
     '  Cache-Control: no-store',
     '',
     '/web-shell.html',
+    '  Cache-Control: no-store',
+    '',
+    '/policy.json',
     '  Cache-Control: no-store',
     '',
     '/*.apk',
