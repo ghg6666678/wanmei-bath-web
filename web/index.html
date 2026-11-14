@@ -770,7 +770,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
 <script>
 const $ = s => document.querySelector(s);
 const state = {orders: [], rooms: [], cfg: {}, settings: {}, balance: null, serverOffset: 0,
-               serverCalibrated: false, pickedRoom: null};
+               serverCalibrated: false, pickedRoom: null, netDown: ''};
 
 function toast(msg, err) {
   const t = $('#toast');
@@ -780,6 +780,48 @@ function toast(msg, err) {
   t._t = setTimeout(() => t.className = 'toast', 2600);
 }
 
+/* 断网/连不上时统一说法（与 Android 端同一套）。
+   浏览器抛的是「Failed to fetch」「Load failed」，对用户没有意义——
+   他要的只有「怎么了」和「怎么办」。只改写**网络层**报错，
+   服务端返回的业务错误（「验证码错误」「登录已失效」）原样保留。 */
+function netText(msg) {
+  const s = String(msg == null ? '' : msg).trim();
+  if (!s) return s;
+  /* 三层，与 Android 端 MainActivity.msg() 对齐：
+     ① 已经是人话的（原生/服务端已翻译）别再动；
+     ② 明确的网络关键词；
+     ③ 兜底：像异常类名 / 技术细节的，一律换成一句人话——断网时浏览器的
+        报错形状五花八门（Failed to fetch、net::ERR_*、JSON 解析失败），
+        一条都不该出现在界面上。 */
+  if (/网络未连接|网络连接超时|网络不太稳定|登录已失效|还没有登录/.test(s)) return s;
+  if (/UnknownHost|Unable to resolve host|No address associated|ConnectException|NoRouteToHost|PortUnreachable|Network is unreachable|ENETUNREACH|ECONNREFUSED|ECONNRESET|Connection reset|Broken pipe|Failed to fetch|NetworkError|Load failed|ERR_INTERNET|ERR_NAME_NOT_RESOLVED|ERR_NETWORK_CHANGED|ERR_CONNECTION/i.test(s)) {
+    return '网络未连接';
+  }
+  if (/SocketTimeout|Read timed out|connect timed out|timed out|ETIMEDOUT|ERR_TIMED_OUT/i.test(s)) {
+    return '网络连接超时，请重试';
+  }
+  if (technicalText(s)) return '网络不太稳定，请稍后重试';
+  return s;
+}
+
+/* 文本像不像「异常类名 + 技术细节」。像，就不许直接展示给用户。
+   判得窄一点：业务错误（「验证码错误」「预约失败」）不会命中这些特征。 */
+function technicalText(s) {
+  if (/^[\w.$]+(Exception|Error|Throwable)\b/.test(s)) return true;
+  const l = s.toLowerCase();
+  return l.indexOf('java.') === 0 || l.indexOf('javax.') === 0
+    || l.indexOf('org.json') === 0 || l.indexOf('android.') === 0
+    || l.indexOf('exception:') >= 0 || l.indexOf('cannot be converted') >= 0
+    || l.indexOf('unexpected end of') >= 0 || l.indexOf('failed to parse') >= 0
+    || l.indexOf('unexpected token') >= 0 || l.indexOf('<html') >= 0
+    || l.indexOf('<!doctype') >= 0 || l.indexOf('xhr error') >= 0;
+}
+
+/* navigator.onLine 只会「误报有网」，不会「误报没网」：为 false 时可直接下结论 */
+function offlineNow() {
+  return navigator.onLine === false;
+}
+
 const __pending = {};
 let __seq = 0;
 window.__apiDone = function (id, json) {
@@ -787,8 +829,10 @@ window.__apiDone = function (id, json) {
   if (!p) return;
   delete __pending[id];
   let j;
-  try { j = JSON.parse(json); } catch (e) { return p.reject(new Error('返回解析失败')); }
-  if (!j.ok && j.error) return p.reject(new Error(j.error));
+  /* 与 Android 端同口径：解析坏了也要给用户一句人话，不是开发期措辞 */
+  try { j = JSON.parse(json); } catch (e) { return p.reject(new Error('网络不太稳定，请稍后重试')); }
+  /* 原生桥的失败原因统一过 netText（与 Android 端 assets/index.html 一致） */
+  if (!j.ok && j.error) return p.reject(new Error(netText(j.error)));
   p.resolve(j);
 };
 
@@ -805,8 +849,9 @@ function api(path, opt) {
   if (!nat) {
     /* 网页端：网络/JSON 错误各自归类，但服务端返回的业务错误要保留原文，
        否则「登录态已失效」这类提示会被吞成通用的「返回解析失败」。 */
+    if (offlineNow()) return Promise.reject(new Error('网络未连接'));
     return fetch(path, Object.assign({headers: {'Content-Type': 'application/json'}}, o))
-      .catch(() => { throw new Error('网络请求失败'); })
+      .catch(e => { throw new Error(netText(e && e.message) || '网络请求失败'); })
       .then(r => {
         /* 顺手记下响应头里的 Date（HTTP 强制头），作为「服务器当前时刻」。
            浏览器/原生 WebView 都能读到；拿它校准比等官方下发 nowdate 可靠。 */
@@ -817,9 +862,12 @@ function api(path, opt) {
             if (ms > 0) { __srvClockMs = ms; __srvClockLocalMs = Date.now(); }
           }
         } catch (e) { }
-        return r.json().catch(() => { throw new Error('返回解析失败'); });
+        /* 解析失败最常见的原因不是我们写错了，而是被公共 Wi-Fi 的认证页截了胡：
+           连得上、回来的却是 HTML。「返回解析失败」这种话对用户没有意义，
+           统一成一句人话（与 Android 端 netText 的兜底口径一致）。 */
+        return r.json().catch(() => { throw new Error('网络不太稳定，请稍后重试'); });
       })
-      .then(j => { if (!j.ok && j.error) throw new Error(j.error); return j; });
+      .then(j => { if (!j.ok && j.error) throw new Error(netText(j.error)); return j; });
   }
   return new Promise((resolve, reject) => {
     const id = 'r' + (++__seq);
@@ -1198,6 +1246,7 @@ async function loadAll() {
     state.orders = j.orders || [];
     state.rooms = j.bathrooms || [];
     state.settings = j.settings || j.limits || {};
+    state.netDown = '';             /* 这一次通了，下回再断可以重新提示 */
     /* 校准优先级：
        1) srvClock —— 原生侧从最近一次响应的 Date 头解析出的服务器时刻；
           网页端在 api() 里读同一个头，走 __srvClockMs 这条路。
@@ -1240,7 +1289,8 @@ async function loadAll() {
     renderBalance(); renderOrder(); renderRooms(); renderMe();
     scheduleRecPrefetch();          /* 会话已热，顺手把记录页的当前月拉下来 */
   } catch (e) {
-    const msg = String(e.message || e);
+    /* 断网不该说成「加载失败」：那不是失败，只是还没连上。 */
+    const msg = netText(String(e.message || e));
     if (/登录|token|票据/i.test(msg)) {
       const logged = (state.cfg || {}).hasToken;
       /* 只有「本来有登录态、现在失效了」才值得再问一次 config（要拿 needCard 决定
@@ -1255,8 +1305,21 @@ async function loadAll() {
       renderNeedLogin(logged);
       return;
     }
-    toast(msg, true);
-    $('#roomList').innerHTML = `<div class="empty">加载失败：${msg}</div>`;
+    /* 走到这里都是「非登录类」的失败：断网、超时、或网络抽风。
+       两条规矩（与 Android 端一致）：
+       ① 屏幕上已有的数据不清空——刷新失败不等于数据没了，切成空态反而更像出了大事；
+       ② 同一种失败连着来只说一次，否则后台定时刷新会一遍遍念同样的话。 */
+    const wasDown = state.netDown === msg;
+    state.netDown = msg;
+    if (!wasDown) toast(msg, true);
+    const hasData = (state.rooms && state.rooms.length) || (state.orders && state.orders.length);
+    if (!hasData) {
+      $('#roomList').innerHTML = msg === '网络未连接'
+        ? '<div class="empty">网络未连接<br>连上网络后刷新一下页面</div>'
+        : (msg === '网络连接超时，请重试'
+            ? '<div class="empty">网络连接超时<br>刷新一下页面可以重试</div>'
+            : `<div class="empty">加载失败：${esc(msg)}<br>刷新一下页面可以重试</div>`);
+    }
   }
 }
 
@@ -2139,7 +2202,8 @@ document.addEventListener('touchend', async () => {
   try { await loadAll(); } catch (e) { }
   pullBusy = false;
   pullReset();
-  toast('已刷新');
+  /* 失败了 loadAll 自己会说话，这里只补成功的那句（否则会同时看到「已刷新」和「网络未连接」） */
+  if (!state.netDown) toast('已刷新');
 }, {passive: true});
 document.addEventListener('touchcancel', () => { if (!pullBusy) pullReset(); }, {passive: true});
 $('#btnRecharge').onclick = () => showSheet('#paySheet');
@@ -2404,9 +2468,13 @@ $('#guideWx').onclick = () => {
      2. 把 WEB_BUILD 改成同一个值
    纯后端改动（server.py）不需要动这里。 */
 
-const WEB_BUILD = '2026.11.14';
+const WEB_BUILD = '2026.11.15';
 const WEB_LOG_KEY = 'webBuildSeen';
 const WEB_LOG = [
+  { v: '2026.11.15', items: [
+    '断网时不再弹原始报错：首页直接说明「网络未连接」，连上后刷新即可',
+    '刷新失败不再清空已经显示的浴室列表，旧内容留在屏幕上',
+  ] },
   { v: '2026.11.14', items: [
     '隐私政策更正：补上 Cloudflare 边缘网络这个通信方，修正「不涉及跨境」的表述',
     '条文变了，本次打开会重新征求一次同意',
