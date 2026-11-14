@@ -780,8 +780,9 @@ input[type=tel]::placeholder{color:var(--ink3)}
 <div class="sheet" id="diagSheet">
   <div class="bar-h"></div>
   <h3>诊断信息</h3>
-  <div class="hint">这些内容只在本机生成，不联网、不上传，也不含手机号和姓名。出问题时点「复制」，粘到反馈里——界面上只说「网络未连接」，这里才有原始原因。</div>
+  <div class="hint">这些内容只在本机生成，不联网、不上传，也不含手机号和姓名；<strong>存在这个浏览器里，刷新和关掉页面都不会丢</strong>。出问题时点「复制」，粘到反馈里——界面上只说「网络未连接」，这里才有原始原因。</div>
   <div class="diagbox" id="diagBody"></div>
+  <div style="text-align:right;margin-top:7px"><a href="javascript:void(0)" id="diagClear" style="font-size:12px;color:var(--brand);text-decoration:none">清空记录</a></div>
   <div style="display:flex;gap:9px;margin-top:12px">
     <button class="btn ghost" style="flex:1" id="diagClose">关闭</button>
     <button class="btn" style="flex:1.4" id="diagCopy">复制</button>
@@ -812,7 +813,17 @@ function toast(msg, err) {
    `TypeError: x is not a function` 才是我们自己的 bug。
    环形缓冲，只在内存里，不落盘、不联网；用户在「设置 → 应用 → 诊断信息」里点复制才离开设备。 */
 const DIAG_MAX = 60;
+const DIAG_KEY = 'diagLog';
 const __diag = [];
+
+/* 落盘到 localStorage。只留内存的话，「重启一下试试」这一步就把证据弄丢了，
+   而重启恰恰是多数人遇到问题的第一反应。写失败（配额满 / 隐私模式）绝不影响主流程。 */
+function diagSave() {
+  try { localStorage.setItem(DIAG_KEY, JSON.stringify(__diag)); }
+  catch (e) {
+    try { localStorage.setItem(DIAG_KEY, JSON.stringify(__diag.slice(-20))); } catch (e2) { }
+  }
+}
 function diagAdd(kind, where, raw, shown) {
   try {
     __diag.push({
@@ -821,8 +832,26 @@ function diagAdd(kind, where, raw, shown) {
       shown: String(shown == null ? '' : shown)
     });
     if (__diag.length > DIAG_MAX) __diag.splice(0, __diag.length - DIAG_MAX);
+    diagSave();
   } catch (e) { }
 }
+
+/* 把上次留下的记录读回来。必须跑在任何 diagAdd 之前，
+   否则新事件会排到旧事件前面（诊断页是「新的在上」）。 */
+(function diagRestore() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]');
+    if (!Array.isArray(arr) || !arr.length) return;
+    arr.forEach(e => {
+      __diag.push({
+        t: Number(e && e.t) || 0, kind: String((e && e.kind) || ''),
+        where: String((e && e.where) || ''),
+        raw: String((e && e.raw) || ''), shown: String((e && e.shown) || '')
+      });
+    });
+    if (__diag.length > DIAG_MAX) __diag.splice(0, __diag.length - DIAG_MAX);
+  } catch (e) { }
+})();
 window.addEventListener('error', e => {
   diagAdd('js', 'onerror', (e && e.message ? e.message : '') +
     ' @' + String((e && e.filename) || '').split('/').pop() + ':' + ((e && e.lineno) || 0), '');
@@ -1298,6 +1327,7 @@ async function loadAll() {
     state.orders = j.orders || [];
     state.rooms = j.bathrooms || [];
     state.settings = j.settings || j.limits || {};
+    if (state.netDown) diagAdd('net', '恢复', '', '刷新成功');
     state.netDown = '';             /* 这一次通了，下回再断可以重新提示 */
     /* 校准优先级：
        1) srvClock —— 原生侧从最近一次响应的 Date 头解析出的服务器时刻；
@@ -2095,7 +2125,8 @@ function diagLines() {
   L.push('服务器时间 ' + (state.serverCalibrated
       ? '已校准 ' + (state.serverOffset >= 0 ? '+' : '') + (state.serverOffset / 1000).toFixed(1) + ' 秒'
       : '未知，按本机时间估算'));
-  L.push('已记录事件 ' + __diag.length + ' 条（上限 ' + DIAG_MAX + '，只在本机内存里）');
+  L.push('保存位置   浏览器 localStorage（刷新与重开都保留，上限 60 条）');
+  L.push('已记录事件 ' + __diag.length + ' 条');
   L.push('');
   L.push('—— 最近事件（新的在上）——');
   if (!__diag.length) L.push('无');
@@ -2385,6 +2416,7 @@ $('#lgSubmit').onclick = async () => {
   $('#lgWarn').style.display = 'none';
   try {
     await nativeCall('doLogin', phone, code);
+    diagAdd('app', '登录', '', '成功');
     __markLogged(true);          /* 记下「这个浏览器登录过」，下次打开才值得去拉数据 */
     $('#lgCode').value = '';
     await loadAll();
@@ -2402,6 +2434,7 @@ $('#lgSubmit').onclick = async () => {
       toast('登录成功');
     }
   } catch (e) {
+    diagAdd('app', '登录', (e && e.message) || '', '失败');
     $('#lgWarn').textContent = e.message;
     $('#lgWarn').style.display = 'block';
   } finally {
@@ -2540,6 +2573,25 @@ $('#rowDiag').onclick = () => { showSheet('#diagSheet'); renderDiag(); };
 $('#diagClose').onclick = () => hideSheet();
 /* 每次打开都重新收集：复现完再打开一次，就是最新的现场 */
 $('#diagCopy').onclick = () => { if (!__diagText) renderDiag(); copyAny(__diagText, '已复制，粘到反馈里就行'); };
+/* 清空用「再点一次确认」，不弹确认框：诊断页本身就是弹层，再叠一层容易层叠错乱 */
+let __diagClearArm = 0;
+$('#diagClear').onclick = () => {
+  const el = $('#diagClear');
+  if (Date.now() - __diagClearArm < 4000) {
+    __diagClearArm = 0;
+    el.textContent = '清空记录';
+    __diag.length = 0;
+    try { localStorage.removeItem(DIAG_KEY); } catch (e) { }
+    renderDiag();
+    toast('已清空');
+    return;
+  }
+  __diagClearArm = Date.now();
+  el.textContent = '再点一次确认清空';
+  setTimeout(() => {
+    if (Date.now() - __diagClearArm >= 4000) el.textContent = '清空记录';
+  }, 4200);
+};
 
 /* Android 返回键：先关弹层，再回我的/首页，最后退出 */
 window.__onBack = function () {
@@ -2699,6 +2751,8 @@ $('#rowChangelog').onclick = () => openChangelog(true);
        这一条管的是「屏幕亮着、人已经走了」
      · 没登录态不刷
    挂机一小时约 6 次，和 3 分钟一次在体感上分不出来。 */
+/* 时间线锚点：偶发问题最需要「这次打开发生了什么」，而不是只有失败那几秒 */
+diagAdd('app', '启动', '', WEB_BUILD);
 if (__loggedOnce()) {
   loadAll();
 } else {
