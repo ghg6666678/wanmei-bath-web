@@ -355,11 +355,14 @@ input[type=tel]::placeholder{color:var(--ink3)}
   <div id="pageMe" class="hidden">
     <div class="sec-title"><h3>账号</h3></div>
     <section class="card">
+      <!-- 只留「我是谁」：姓名、学号、学校。与 Android 端同一口径。
+           手机号是登录凭据的一部分，屏幕上少露一次就少一次被旁人看到的机会；
+           顶部问候语下面已经有一行掩码手机号，登录框也会自动带出上次的号码。
+           「登录态」是技术状态，不是用户需要读的信息：失效时会自动弹登录框，
+           正常时单独占一行显得多余、异常时又说不清。 -->
       <div class="rec"><span>姓名</span><span class="r" id="meName">—</span></div>
       <div class="rec"><span>学号</span><span class="r" id="meId">—</span></div>
       <div class="rec"><span>学校</span><span class="r" id="meSchool">—</span></div>
-      <div class="rec"><span>手机号</span><span class="r" id="mePhone">—</span></div>
-      <div class="rec"><span>登录态</span><span class="r" id="meToken">—</span></div>
     </section>
 
     <div class="sec-title"><h3>设置</h3></div>
@@ -1176,12 +1179,10 @@ $('#btnStarDorm').onclick = () => {
 };
 
 function renderMe() {
-  const pe = $('#mePhone');
-  if (pe) pe.textContent = state.cfg.phone || '—';
+  /* 手机号与登录态都不再展示，理由见 #pageMe 的注释；顶部副标题仍显示掩码手机号。 */
   $('#meName').textContent = state.cfg.name || '—';
   $('#meId').textContent = state.cfg.outid || '—';
   $('#meSchool').textContent = state.cfg.school || '—';
-  $('#meToken').textContent = state.cfg.hasToken ? '有效' : '缺失';
   const st = state.settings || {};
   $('#valTime').textContent = st.max_time_limit ? st.max_time_limit + ' 分钟' : '—';
   const fareFen = Number(st.max_fare_limit || 0);
