@@ -73,9 +73,10 @@ export default {
     }
 
     if (SITE_HOSTS.has(host)) {
-      /* 官网里有 4 处 href="/web/" 的绝对路径（site/index.html:46,51,130,139）。
-         域名拆分后这些链接必须落到 web 子域，否则会在主域上渲染一份网页端。
-         site/ 是发版时自动生成的快照，改它会被覆盖，所以在边缘做重定向。 */
+      /* 官网入口现在直接写裸链 https://web.yuezao.org（不带斜杠、零跳转）。
+         这条规则只为兼容历史链接：早期官网用 href="/web/"，二维码、老书签和
+         已经发出去的分享链接里还带着这个路径。若在主域直接渲染网页端，就成了
+         「同一个应用两个地址」，所以统一 301 到 web 子域。别删。 */
       if (url.pathname === '/web' || url.pathname.startsWith('/web/')) {
         const rest = url.pathname.slice(4) || '/';
         return Response.redirect(
