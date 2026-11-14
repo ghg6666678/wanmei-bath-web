@@ -10,12 +10,60 @@
  */
 
 import { cp, rm, mkdir, writeFile, readdir, stat } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const src = join(here, '..', '..', 'android-app', 'site');
 const out = join(here, 'public');
+
+/* 隐私政策一致性闸门。
+ *
+ * site/policy.json 是唯一权威，官网 privacy.html 与应用内置文本都由
+ * android-app/tools/gen_policy.py 从它生成。忘记重新生成时，页面一切正常，
+ * 只是条文是旧的——这种错只有人工比对才能发现，所以在部署前用指纹拦住：
+ * 每份产物里都带着「生成时那段正文的 sha256」，这里按同样的算法重算一次。
+ *
+ * 算法必须与 gen_policy.py 的 fingerprint() 逐字节一致：
+ *   sha256([ver, date, applies, html].join('\n')).slice(0, 12)
+ */
+function policyHash(json) {
+  const raw = [json.ver, json.date, json.applies, json.html].map((v) => String(v ?? '')).join('\n');
+  return createHash('sha256').update(raw, 'utf8').digest('hex').slice(0, 12);
+}
+
+function stampedHash(file) {
+  const text = readFileSync(file, 'utf8');
+  const m = /<!-- POLICY:BEGIN[^>]*sha256=([0-9a-f]{12}) -->/.exec(text);
+  return m ? m[1] : null;
+}
+
+try {
+  const policy = JSON.parse(readFileSync(join(src, 'policy.json'), 'utf8'));
+  const want = policyHash(policy);
+  const targets = [
+    ['官网页面', join(src, 'privacy.html')],
+    ['应用内置文本', join(here, '..', '..', 'android-app', 'assets', 'index.html')]
+  ];
+  const stale = [];
+  for (const [label, file] of targets) {
+    const got = stampedHash(file);
+    if (got !== want) stale.push(`  ${label}：${got ? `生成于 ${got}` : '没有生成标记'}，应为 ${want}`);
+  }
+  if (stale.length) {
+    console.error('隐私政策不同步（policy.json 已改，生成物没跟上）：');
+    console.error(stale.join('\n'));
+    console.error('\n修：cd android-app && python tools/gen_policy.py');
+    process.exit(1);
+  }
+  console.log(`隐私政策一致：v${policy.ver}，sha256=${want}`);
+} catch (e) {
+  console.error(`隐私政策检查失败：${e.message}`);
+  console.error('（先跑 android-app/tools/gen_policy.py，再回来部署）');
+  process.exit(1);
+}
 
 try {
   await stat(join(src, 'index.html'));
