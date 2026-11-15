@@ -38,8 +38,19 @@ _lock = threading.Lock()
 _session = None
 _config = {}
 
-# 无状态模式：开了才加载（否则不碰密钥文件）
-STATELESS = statebox.mode_enabled()
+# ---------- 会话模式的默认值（2026-11-15 事故后改） ----------
+# 事故：线上跑的是默认的「单人模式」——票据落在 config.json、进程里一份全局 Session，
+# 于是**任何浏览器打开网页端都看到同一个账号**（实测：不带 cookie 直连 /api/state 就
+# 返回了完整账号，含姓名、完整手机号、学号、余额、订单）。
+#
+# 错的不是单人模式本身（本地自用很合适），错在**它曾经是默认值**：只要忘了设环境变量，
+# 一个面向公网的部署就自动变成了「所有人共用一个人的账号」。
+#
+# 现在反过来：默认走无状态（每请求自带凭据、服务端不存用户数据），单人模式必须显式
+# 设置 BATH_SINGLE=1 才会启用——那意味着「我知道这是给一个人用的」。
+SINGLE = os.environ.get('BATH_SINGLE', '').strip() in ('1', 'true', 'yes', 'on')
+STATELESS = not SINGLE
+BOX = statebox.box() if STATELESS else None
 BOX = statebox.box() if STATELESS else None
 
 # 登录握手：sendCode 与 doLogin 必须复用同一个 WxLogin 实例（session 要一致）。
@@ -111,6 +122,20 @@ def _login_config(w, user, phone):
 
 def load_config():
     global _config
+    if STATELESS:
+        # 无状态模式下 config.json 里那份「全局登录态」必须当作不存在：
+        # 读进来就会被某个请求当成默认账号（事故根因），所以直接不读。
+        _config = {}
+        if os.path.exists(CONFIG_PATH):
+            try:
+                with open(CONFIG_PATH, encoding='utf-8') as f:
+                    old = json.load(f)
+            except Exception:
+                old = {}
+            if old.get('token'):
+                print('!! 发现遗留的 config.json（含登录票据），无状态模式下已忽略。')
+                print('   它曾经让所有人共用同一个账号，建议直接删除：%s' % CONFIG_PATH)
+        return _config
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, encoding='utf-8') as f:
             _config = json.load(f)
@@ -559,7 +584,9 @@ def _server_dt(hhmmss):
 
 def _public_config(cfg=None):
     """下发给前端的账号信息。过滤掉 token，只告诉它「有没有」。"""
-    cfg = _config if cfg is None else cfg
+    if cfg is None:
+        # 单人模式回落到全局；无状态模式绝不允许回落到任何「全局账号」
+        cfg = {} if STATELESS else _config
     return {
         'name': cfg.get('name'),
         'phone': cfg.get('mobile') or cfg.get('phone'),
@@ -591,17 +618,20 @@ def main():
     load_config()
     if STATELESS:
         # 无状态模式下没有「本机登录态」这回事：每个请求自带凭据，启动时无从校验
-        print('✔ 无状态模式：票据由浏览器保管，服务端不保存任何账号数据')
+        print('✔ 无状态模式（默认）：票据由浏览器保管，服务端不保存任何账号数据')
         print('  cookie 名称 %s，最大 7 天；换密钥后所有人需重新登录' % statebox.COOKIE)
-    elif not _config.get('token'):
-        print('!! 未配置 token，请运行 python login.py，或在网页里用手机号登录')
     else:
-        try:
-            get_session()
-            print('✔ 登录态有效：%s · %s' % (_config.get('name'), _config.get('school')))
-        except Exception as e:
-            print('!! 登录态无效：%s' % e)
-            print('   可运行 python login.py 重新登录，或在网页里用手机号登录')
+        print('!! 单人模式（BATH_SINGLE=1）：全进程共用一份会话与 config.json。')
+        print('   只适合本机自用。若这个端口对公网开放，任何人打开都会看到同一个账号。')
+        if not _config.get('token'):
+            print('!! 未配置 token，请运行 python login.py，或在网页里用手机号登录')
+        else:
+            try:
+                get_session()
+                print('✔ 登录态有效：%s · %s' % (_config.get('name'), _config.get('school')))
+            except Exception as e:
+                print('!! 登录态无效：%s' % e)
+                print('   可运行 python login.py 重新登录，或在网页里用手机号登录')
     srv = ThreadingHTTPServer(('0.0.0.0', port), Handler)
     ip = _lan_ip()
     print('')

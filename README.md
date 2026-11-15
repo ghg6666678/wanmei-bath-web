@@ -18,11 +18,13 @@
 ```bash
 pip install -r requirements.txt
 
-python login.py        # 手机号 + 短信验证码登录，票据写入 config.json
-python server.py 8770  # 启动服务
+python login.py        # 单人模式专用：手机号 + 短信验证码登录，票据写入 config.json
+BATH_SINGLE=1 python server.py 8770   # 单人模式启动（仅本机自用）
 ```
 
-也可以不跑 `login.py`：直接打开网页，用手机号 + 短信验证码登录（票据同样写入 `config.json`）。
+**默认是无状态模式**（`python server.py` 即可）：票据加密后放在**你自己浏览器的 cookie** 里，服务端不保存任何账号数据，多个使用者互不干扰。单人模式必须显式设 `BATH_SINGLE=1`——它会全进程共用一份会话，**只能本机自用**。
+
+也可以不跑 `login.py`：直接打开网页，用手机号 + 短信验证码登录。
 
 Windows 上也可以直接双击 `启动.bat`（会调用 `server.py`）。
 
@@ -57,7 +59,7 @@ npx wrangler deploy
 
 ```bash
 cp -r ../android-app/site/. site/     # 本地/容器用的快照，site/ 不入库
-BATH_STATELESS=1 BATH_COOKIE_SECURE=1 BATH_STATE_KEY=<64 位十六进制> python3 server.py
+BATH_COOKIE_SECURE=1 BATH_STATE_KEY=<64 位十六进制> python3 server.py
 ```
 
 容器会注入 `PORT`，`server.py` 优先读它；本地仍支持 `python server.py 8770`。启动时检测到 `site/` 就按本地路由提供静态页，不存在则全部走 `web/`，本地开发行为不变。**分享码只在直连上游时需要**，Worker 的 `proxy()` 会自动补码，公开域名全链路裸链可达。
@@ -77,7 +79,7 @@ BATH_STATELESS=1 BATH_COOKIE_SECURE=1 BATH_STATE_KEY=<64 位十六进制> python
 
 `BATH_COOKIE_SECURE=1` 在 HTTPS 下给 cookie 加 `Secure`。固定密钥只能用环境变量传入，**不要写进仓库**；换密钥等于让所有人重新登录一次。
 
-**必须开无状态模式**：绝对不要用默认的「单人自用」模式对外服务——票据会写进 `config.json`，换个人登录就互相覆盖。实现说明见 `docs/STATELESS.md`。
+**不要再设 `BATH_STATELESS`**：无状态已经是默认值。反向的 `BATH_SINGLE=1` 只用于本机自用——它会全进程共用一份会话与 `config.json`，一旦对外服务就是「所有人共用一个人的账号」（2026-11-15 事故即此，见 `docs/INCIDENT-2026-11-15.md`）。实现说明见 `docs/STATELESS.md`。
 
 **注意事项**：
 
@@ -138,7 +140,7 @@ CONTRIBUTING.md 贡献说明
 - **单点登录**：在这里登录会让手机上的原版 App 下线（错误码 `100600`），反之亦然
 - **充值只给指引**：点首页「充值」会弹出说明，指引到微信小程序「完美校园」充值。原版支付校验 `appid + 包名 + 签名` 三者绑定，第三方客户端调不起，本工具不处理支付
 - 会话会过期；失效时会自动提示并弹出登录框，在网页里重新登录即可（也可以重跑 `python login.py`）
-- **默认模式只在可信局域网使用**：票据写进 `config.json`，进程里只有一份会话，换人登录会互相覆盖。**这个模式不要暴露到公网**；要对外访问请开无状态模式，见「在线部署」
+- **单人模式（`BATH_SINGLE=1`）只在可信局域网使用**：票据写进 `config.json`，进程里只有一份会话，换人登录会互相覆盖。**这个模式不要暴露到公网**；对外服务用默认的无状态模式，见「在线部署」
 
 ## 参考实现
 
@@ -187,9 +189,9 @@ CONTRIBUTING.md 贡献说明
 
 **只是被浏览器跨域卡住的话**（需要一台服务器转发、但不留存票据），不用申请：`LICENSE` 允许第 7 条已明确，不落盘、不写进日志、不跨用户共享、一次请求一个会话的转发是允许的。
 
-> ⚠️ **`server.py` 默认是「单人自用」模式**：票据写进 `config.json`，进程里只有一份 `_session`，换个人登录会覆盖前一个。这不符合上面那条「无状态转发」。
+> ✅ **`server.py` 默认就是无状态模式**：票据加密后放进浏览器 cookie，服务端不保存任何账号数据，符合上面那条「无状态转发」。
 >
-> 需要给多人用时，设 `BATH_STATELESS=1` 启动即可——票据加密后放进浏览器 cookie，服务端不保存任何账号数据，符合允许第 7 条。实现说明与移植到其他技术栈的思路见 **[docs/STATELESS.md](docs/STATELESS.md)**。
+> 单人模式（全进程一份会话 + `config.json`）必须显式 `BATH_SINGLE=1`，只用于本机自用。**2026-11-15 曾因线上误用默认值导致所有访客看到同一个账号**，复盘见 **[docs/INCIDENT-2026-11-15.md](docs/INCIDENT-2026-11-15.md)**；实现说明与移植到其他技术栈的思路见 **[docs/STATELESS.md](docs/STATELESS.md)**。
 
 ### 为什么不做「一个服务器服务全校」的网页版
 
