@@ -37,6 +37,20 @@ const REDIRECT_HOSTS = new Set(['www.yuezao.org']);
    / 是主入口，/web 和 /web/ 是早期 PWA 的 start_url 和老书签。 */
 const SHELL_PATHS = new Set(['/', '/web', '/web/']);
 
+/* ---------- 紧急下架开关（2026-11-15） ----------
+   事故：有用户打开网页端，看到的是另一个账号（朋友在自己手机上登录过）的数据。
+   这说明上游服务端的会话没有按浏览器隔离——在根因修复并验证之前，网页端整站下线。
+
+   为什么放在最外层而不是停上游：边缘直出外壳，停上游只会让页面「打开是好的、
+   一用就报错」，既不干净也不够快；这里直接返回 503，外壳和 /api 一起断，
+   不会再有第二个用户从缓存里看到别人。
+
+   连带挡住 yuezao.org/api/*：官网本身不需要接口，这条路径此前也能通到同一套
+   会话，属于同一个洞的另一个入口。
+
+   官网静态资源（含 APK 下载）不受影响，安卓端更新链路照旧。 */
+const WEB_MAINTENANCE = true;
+
 /* ---------- 入口 ---------- */
 
 export default {
@@ -56,6 +70,9 @@ export default {
       const to = new URL(url.pathname + url.search, 'https://' + [...SITE_HOSTS][0]);
       return Response.redirect(to.toString(), 301);
     }
+
+    /* 下架期间：整个 web 子域一律 503，先于任何外壳/反代逻辑 */
+    if (WEB_MAINTENANCE && WEB_HOSTS.has(host)) return maintenance();
 
     if (WEB_HOSTS.has(host)) {
       /* 首页外壳由边缘直出，不再回源。
@@ -85,9 +102,12 @@ export default {
         );
       }
 
-      /* 兜底：官网目前没有任何接口调用，这段是为将来留的。若真需要读后端，
-         走反代而不是静态查找，避免「接口路径被当成文件名 → 404」。 */
-      if (url.pathname.startsWith('/api/')) return proxy(request, url, false);
+      /* 官网目前没有任何接口调用。下架期间这条路径也要断——它和 web 子域一样
+         能通到上游那套未隔离的会话。 */
+      if (url.pathname.startsWith('/api/')) {
+        if (WEB_MAINTENANCE) return maintenance();
+        return proxy(request, url, false);
+      }
 
       /* 静态文件直出，不回源。用 env.ASSETS 是否存在来判断，而不是写死一个开关：
          配置漂移时（比如换了个 Worker 忘了挂 assets）能自动退回反代，
@@ -108,6 +128,31 @@ export default {
 };
 
 /* ---------- 逻辑 ---------- */
+
+/** 下架期间的统一响应。不缓存，避免有人从 CDN 拿到旧页面。 */
+function maintenance() {
+  const html = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>网页端维护中</title><style>' +
+    'body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;' +
+    'background:#f4f6f8;color:#101828;font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",' +
+    '"PingFang SC","Microsoft YaHei",sans-serif;padding:24px}' +
+    '.c{max-width:420px} h1{font-size:20px;margin:0 0 12px} p{margin:0 0 10px;color:#475467}' +
+    'small{color:#98a2b3}</style></head><body><div class="c">' +
+    '<h1>网页端暂时下线</h1>' +
+    '<p>我们发现网页端存在数据串号的问题（可能看到别人的账号），正在修复。</p>' +
+    '<p>修复并验证之前不会重新开放。<strong>安卓客户端不受影响</strong>，可以继续使用。</p>' +
+    '<small>给你带来麻烦，很抱歉。</small>' +
+    '</div></body></html>';
+  return new Response(html, {
+    status: 503,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store, must-revalidate',
+      'retry-after': '3600',
+    },
+  });
+}
 
 /** 公开域名路径 → 上游路径。两端共用 /api/*，静态资源按 host 分流。 */
 function upstreamPath(url, isWeb) {
