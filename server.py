@@ -6,11 +6,13 @@
 
 两种会话模式
 ------------
-单人自用（默认）：票据落在 config.json，进程里维护一份 Session。简单、重启免登录，
-                  但只能一个人用——换人登录会覆盖前一个。
-无状态多用户：    设 BATH_STATELESS=1，票据加密后放进浏览器 cookie，服务端不保存任何
-                  用户数据、每个请求自带凭据，可以安全地给多个使用者用。
-                  说明见 docs/STATELESS.md。
+无状态多用户（默认）：票据加密后放进浏览器 cookie，服务端不保存任何用户数据，
+                      每个请求自带凭据，使用者之间互相隔离。不需要设环境变量。
+                      说明见 docs/STATELESS.md。
+单人自用：            必须显式设 BATH_SINGLE=1。票据落在 config.json、进程里只有一份
+                      Session，请求不区分「你是谁」。**只可本机自用，禁止暴露到公网**——
+                      2026-11-15 的事故正是因为这个模式曾是默认值，
+                      见 docs/INCIDENT-2026-11-15.md。
 """
 import datetime
 import json
@@ -50,7 +52,6 @@ _config = {}
 # 设置 BATH_SINGLE=1 才会启用——那意味着「我知道这是给一个人用的」。
 SINGLE = os.environ.get('BATH_SINGLE', '').strip() in ('1', 'true', 'yes', 'on')
 STATELESS = not SINGLE
-BOX = statebox.box() if STATELESS else None
 BOX = statebox.box() if STATELESS else None
 
 # 登录握手：sendCode 与 doLogin 必须复用同一个 WxLogin 实例（session 要一致）。
@@ -582,15 +583,31 @@ def _server_dt(hhmmss):
 # 记录动作在 vwater._call 里完成（每次官方请求都会带上这个头），这里只取快照。
 
 
+def _mask_phone(v):
+    """下发给浏览器的手机号一律掩码（2026-11-15 事故后的纵深防御）。
+
+    完整号码只在用户自己输入时存在于本机，服务端不再把它发到任何页面：
+    万一将来隔离再出问题，泄漏的也只是一串星号。登录框预填改用前端的
+    getLocalPhone()（本机记住），不依赖这里下发完整号码。
+    """
+    s = str(v or '').strip()
+    if not s:
+        return None
+    if len(s) == 11 and s.isdigit():
+        return s[:3] + '****' + s[-4:]
+    return (s[:2] + '***' + s[-2:]) if len(s) >= 6 else '***'
+
+
 def _public_config(cfg=None):
     """下发给前端的账号信息。过滤掉 token，只告诉它「有没有」。"""
     if cfg is None:
         # 单人模式回落到全局；无状态模式绝不允许回落到任何「全局账号」
         cfg = {} if STATELESS else _config
+    phone = _mask_phone(cfg.get('mobile') or cfg.get('phone'))
     return {
         'name': cfg.get('name'),
-        'phone': cfg.get('mobile') or cfg.get('phone'),
-        'mobile': cfg.get('mobile') or cfg.get('phone'),
+        'phone': phone,
+        'mobile': phone,
         'outid': cfg.get('outid'),
         'school': cfg.get('school'),
         'customerCode': cfg.get('customerCode'),

@@ -71,7 +71,10 @@ def main():
     print()
 
     env = dict(os.environ)
-    env['BATH_STATELESS'] = '1'
+    # 2026-11-15 起默认就是无状态；故意两个模式变量都不设，
+    # 让测试同时验到「默认值站在安全侧」这件事（事故根因就是默认值反了）。
+    env.pop('BATH_SINGLE', None)
+    env.pop('BATH_STATELESS', None)
     env['BATH_STATE_KEY'] = KEY
     env.pop('BATH_COOKIE_SECURE', None)
 

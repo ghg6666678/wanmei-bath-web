@@ -42,14 +42,20 @@ const SHELL_PATHS = new Set(['/', '/web', '/web/']);
    这说明上游服务端的会话没有按浏览器隔离——在根因修复并验证之前，网页端整站下线。
 
    为什么放在最外层而不是停上游：边缘直出外壳，停上游只会让页面「打开是好的、
-   一用就报错」，既不干净也不够快；这里直接返回 503，外壳和 /api 一起断，
-   不会再有第二个用户从缓存里看到别人。
+  一用就报错」，既不干净也不够快；这里直接返回 503，外壳和 /api 一起断，
+  不会再有第二个用户从缓存里看到别人。
 
-   连带挡住 yuezao.org/api/*：官网本身不需要接口，这条路径此前也能通到同一套
-   会话，属于同一个洞的另一个入口。
+  连带挡住 yuezao.org/api/*：官网本身不需要接口，这条路径此前也能通到同一套
+  会话，属于同一个洞的另一个入口。
 
-   官网静态资源（含 APK 下载）不受影响，安卓端更新链路照旧。 */
-const WEB_MAINTENANCE = true;
+  2026-11-15 事故处置时间线：全站 503 → 清残留票据 → server.py 默认翻转为无状态
+  → 取消旧应用发布 → 修好并验证（本地 81 项 + 线上 18 项隔离测试）→ 重新发布
+  → 本开关恢复为 false。这个常量保留作**紧急下架闸**：一旦再出现任何数据隔离
+  疑点，第一时间改回 true；重新开放前必须重跑 docs/INCIDENT-2026-11-15.md
+  的「重新发布的前置条件」，不能凭「应该修好了」翻回来。
+
+  官网静态资源（含 APK 下载）不受影响，安卓端更新链路照旧。 */
+const WEB_OFFLINE = false;
 
 /* ---------- 入口 ---------- */
 
@@ -72,7 +78,7 @@ export default {
     }
 
     /* 下架期间：整个 web 子域一律 503，先于任何外壳/反代逻辑 */
-    if (WEB_MAINTENANCE && WEB_HOSTS.has(host)) return maintenance();
+    if (WEB_OFFLINE && WEB_HOSTS.has(host)) return maintenance();
 
     if (WEB_HOSTS.has(host)) {
       /* 首页外壳由边缘直出，不再回源。
@@ -105,7 +111,7 @@ export default {
       /* 官网目前没有任何接口调用。下架期间这条路径也要断——它和 web 子域一样
          能通到上游那套未隔离的会话。 */
       if (url.pathname.startsWith('/api/')) {
-        if (WEB_MAINTENANCE) return maintenance();
+        if (WEB_OFFLINE) return maintenance();
         return proxy(request, url, false);
       }
 
@@ -129,19 +135,18 @@ export default {
 
 /* ---------- 逻辑 ---------- */
 
-/** 下架期间的统一响应。不缓存，避免有人从 CDN 拿到旧页面。 */
+/** 紧急下架时的统一响应（WEB_OFFLINE=true 才会走）。不缓存，避免有人从 CDN 拿到旧页面。 */
 function maintenance() {
   const html = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-    '<title>网页端维护中</title><style>' +
+    '<title>网页端暂时不可用</title><style>' +
     'body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;' +
     'background:#f4f6f8;color:#101828;font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",' +
     '"PingFang SC","Microsoft YaHei",sans-serif;padding:24px}' +
     '.c{max-width:420px} h1{font-size:20px;margin:0 0 12px} p{margin:0 0 10px;color:#475467}' +
     'small{color:#98a2b3}</style></head><body><div class="c">' +
-    '<h1>网页端暂时下线</h1>' +
-    '<p>我们发现网页端存在数据串号的问题（可能看到别人的账号），正在修复。</p>' +
-    '<p>修复并验证之前不会重新开放。<strong>安卓客户端不受影响</strong>，可以继续使用。</p>' +
+    '<h1>网页端暂时不可用</h1>' +
+    '<p>正在处理，请稍后再试。<strong>安卓客户端不受影响</strong>，可继续使用、下载与更新。</p>' +
     '<small>给你带来麻烦，很抱歉。</small>' +
     '</div></body></html>';
   return new Response(html, {
@@ -149,7 +154,6 @@ function maintenance() {
     headers: {
       'content-type': 'text/html; charset=utf-8',
       'cache-control': 'no-store, must-revalidate',
-      'retry-after': '3600',
     },
   });
 }

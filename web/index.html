@@ -2394,6 +2394,19 @@ document.addEventListener('touchend', async () => {
 document.addEventListener('touchcancel', () => { if (!pullBusy) pullReset(); }, {passive: true});
 $('#btnRecharge').onclick = () => showSheet('#paySheet');
 /* ---------- 登录 ---------- */
+/* 登录框预填只用「本机记住的号码」。2026-11-15 起服务端只下发掩码，
+   再拿 config.phone 预填会把 138****1234 塞进 11 位输入框，登录直接失败。
+   本机存不下（隐私模式 / file://）时不预填，用户手输即可。 */
+const LOCAL_PHONE_KEY = 'localPhone';
+function getLocalPhone() {
+  try { return localStorage.getItem(LOCAL_PHONE_KEY) || ''; } catch (e) { return ''; }
+}
+function setLocalPhone(v) {
+  try {
+    if (/^\d{11}$/.test(v || '')) localStorage.setItem(LOCAL_PHONE_KEY, v);
+    else localStorage.removeItem(LOCAL_PHONE_KEY);
+  } catch (e) { }
+}
 let __lgTimer = null;
 let __autoLoginShown = false;   /* 冷启动自动弹一次登录；主动退出后不再自动弹 */
 function openLogin() {
@@ -2401,8 +2414,8 @@ function openLogin() {
      被覆盖就等于失去保护。引导关闭后会自动再弹登录框。 */
   if (__sheetLocked) { __loginPending = true; return; }
   $('#lgWarn').style.display = 'none';
-  const c = (state.cfg || {});
-  if ((c.phone || c.mobile) && !$('#lgPhone').value) $('#lgPhone').value = c.phone || c.mobile;
+  const remembered = getLocalPhone();
+  if (remembered && !$('#lgPhone').value) $('#lgPhone').value = remembered;
   showSheet('#loginSheet');
 }
 
@@ -2442,6 +2455,7 @@ $('#lgSubmit').onclick = async () => {
   $('#lgWarn').style.display = 'none';
   try {
     await nativeCall('doLogin', phone, code);
+    setLocalPhone(phone);          /* 完整号码只留在本机，登录框下次预填用 */
     diagAdd('app', '登录', '', '成功');
     __markLogged(true);          /* 记下「这个浏览器登录过」，下次打开才值得去拉数据 */
     $('#lgCode').value = '';
@@ -2478,6 +2492,7 @@ $('#btnLogout').onclick = () => {
         __markLogged(false);
         __autoLoginShown = true;   /* 主动退出，不要立刻再弹登录 */
         toast('已退出登录');
+        setLocalPhone('');         /* 退出时一并清掉本机记住的号码 */
         $('#lgPhone').value = '';
         $('#lgCode').value = '';
         await loadAll();
