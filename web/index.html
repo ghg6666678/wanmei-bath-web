@@ -730,6 +730,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
     <li>你主动提供：手机号、短信验证码（仅用于换取登录凭据，<strong>验证码不保存</strong>）</li>
     <li>平台返回：登录凭据、姓名、学校、学号、水控余额、预约订单、开阀验证码</li>
     <li>你创建的：星标楼栋、余额提醒阈值、政策同意状态</li>
+    <li>设备画像：机型、系统版本、构建号，以及随机生成的设备 ID——随登录与业务请求一并发往水控平台，让平台把多次登录识别为同一台设备；这两项存在你浏览器的本地存储里，服务端不保存</li>
   </ul>
 
   <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">3. 我们不收集的信息</h4>
@@ -740,7 +741,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
 
   <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">5. 服务器不存储任何用户数据（重要）</h4>
   <p>线上版本以<strong>无状态模式</strong>运行：登录凭据经加密后放进<strong>你自己浏览器的 cookie</strong>，每个请求自带凭据，服务端不落盘、不写数据库、不写进日志、不跨用户共享，也不维护会话。服务端只做一次请求对应一次转发。</p>
-  <p>星标楼栋、余额提醒阈值、政策同意状态存在浏览器的 localStorage 里，只在本机。退出登录立即清除登录凭据；清除浏览器数据即删除全部本地内容。会话 cookie 最长 7 天，过期需重新登录。</p>
+  <p>星标楼栋、余额提醒阈值、政策同意状态存在浏览器的 localStorage 里，只在本机。退出登录立即清除登录凭据；设备画像与设备 ID 同样存在本地存储，退出登录不会清除（重登仍是同一台设备）。清除浏览器数据即删除全部本地内容。会话 cookie 最长 7 天，过期需重新登录。</p>
 
   <h4 style="margin:15px 0 6px;color:var(--ink);font-size:13.5px">6. 第三方</h4>
   <p>登录与业务请求由浏览器发往网页端服务端，再转发至<strong>完美校园水控平台</strong>，会暴露服务端出口 IP 与请求内容。这条链路全程经过 <strong>Cloudflare 边缘网络</strong>（cloudflare.com，境外服务商）：网页端页面由其静态直出，所有 /api/ 请求由其 Worker 转发到境内的 WorkBuddy 云服务。因此 Cloudflare 会接触到 IP、User-Agent、请求路径，以及经其转发的请求内容（含登录时提交的手机号与短信验证码）。官网（yuezao.org）的下载页、隐私政策与反馈页同样由其边缘分发；反馈页还会从 <strong>jsDelivr</strong> 加载云服务 SDK。<strong>网页端不做版本检查，也不主动向 GitHub 或 jsDelivr 请求业务数据。</strong></p>
@@ -2607,7 +2608,7 @@ $('#balThSave').onclick = () => {
 };
 
 /* ---------- 隐私政策：首次启动强制同意，条文变更会重读 ---------- */
-const POLICY_VER = '2';
+const POLICY_VER = '3';
 function policyAccepted() {
   try { return localStorage.getItem('policyAccepted') === POLICY_VER; } catch (e) { return false; }
 }
@@ -2743,9 +2744,14 @@ $('#guideWx').onclick = () => {
      2. 把 WEB_BUILD 改成同一个值
    纯后端改动（server.py）不需要动这里。 */
 
-const WEB_BUILD = '2026.11.16';
+const WEB_BUILD = '2026.11.18';
 const WEB_LOG_KEY = 'webBuildSeen';
 const WEB_LOG = [
+  { v: '2026.11.18', items: [
+    '隐私政策升 v3：写明登录与业务请求会向水控平台上报设备画像（机型、系统版本、构建号与随机设备 ID）',
+    '这段画像存在你的浏览器本地，退出登录不会清除（重登仍是同一台「设备」）',
+    '条文变了，本次打开会重新征求一次同意',
+  ] },
   { v: '2026.11.16', items: [
     '服务端统一设备画像：登录验证码、登录提交与所有业务请求，向上游报的是同一台“手机”',
     '每个浏览器固定一套画像，重新登录不再每次“换手机”',
