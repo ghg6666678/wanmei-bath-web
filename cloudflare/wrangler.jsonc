@@ -9,5 +9,19 @@
     // 默认的 auto-trailing-slash 会把 /privacy.html 307 跳到 /privacy，
     // 而站内链接、二维码、发出去的旧链接统统带 .html。关掉，按原路径找文件。
     "html_handling": "none"
-  }
+  },
+
+  // /fb 是公开写入口，按 IP 限速：每分钟 10 次提交，出限制由 worker.js 返回 429。
+  // 这是 wrangler 4 的语法（顶层 "ratelimits"）；wrangler 3 需要写成
+  // unsafe.bindings（type: "ratelimit"），且 3.x 的旧部署通道实测注入不了——
+  // binding 显示部署成功但运行时拿不到，限速形同虚设（2026-11-18 实测）。
+  // 计数按边缘节点各自进行（宽松、秒级同步），挡脚本灌水够用，不追求精确配额。
+  // namespace_id 只需是账户内唯一的正整数字符串。
+  "ratelimits": [
+    {
+      "name": "FB_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ]
 }

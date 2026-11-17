@@ -48,7 +48,9 @@ const SHELL_PATHS = new Set(['/', '/web', '/web/']);
    再从 CDN 加载第三方 SDK。
 
    校验只做结构层：类型白名单、长度、体积上限，字段全部由服务端重新拼，不信任页面传的
-   ua / page。频率限制交给 Cloudflare WAF（免费额度外的刷单风险与公开 key 本身同级）。 */
+   ua / page。频率限制用 Workers 原生 ratelimit binding（wrangler.jsonc 的 FB_RATE_LIMITER，
+   按 IP 每分钟 10 次，超了 429）：这是公开写入口，不能不限速；正常用户打字填表时一
+   分钟到不了 10 次。计数是各边缘节点各自宽松计数，挡高频灌水够用，不追求精确。 */
 const CLOUD_FEEDBACK_URL = UPSTREAM + '/.cloud/database/rest/feedback';
 const CLOUD_KEY = 'wbpk_TqUzuRkO7rbqBIQnQmlleM_mREdrABP0Nt9qaKtSyqvDi5o7kf85UGD';
 const FB_KINDS = new Set(['issue', 'suggest', 'other']);
@@ -100,7 +102,7 @@ export default {
     if (WEB_OFFLINE && WEB_HOSTS.has(host)) return maintenance();
 
     if (WEB_HOSTS.has(host)) {
-      if (url.pathname === '/fb') return handleFeedback(request, url);
+      if (url.pathname === '/fb') return handleFeedback(request, url, env);
       /* 首页外壳由边缘直出，不再回源。
          它是 114KB 的纯前端单文件、内容不随用户变化，放在边缘等于把
          「边缘 ↔ 亚洲上游」这一跳整段削掉；上游只留 /api/ 的业务请求。
@@ -130,7 +132,7 @@ export default {
 
       /* 官网反馈：同源中转，见文件头 CLOUD_FEEDBACK_URL 那段说明。
          必须放在 /api/ 判断之前——它不是上游的业务接口。 */
-      if (url.pathname === '/fb') return handleFeedback(request, url);
+      if (url.pathname === '/fb') return handleFeedback(request, url, env);
 
       /* 官网目前没有任何接口调用。下架期间这条路径也要断——它和 web 子域一样
          能通到上游那套未隔离的会话。 */
@@ -191,9 +193,35 @@ function fbJson(obj, status) {
   });
 }
 
-async function handleFeedback(request, url) {
+async function handleFeedback(request, url, env) {
   if (request.method !== 'POST') {
     return fbJson({ error: 'method_not_allowed', message: '只接受 POST' }, 405);
+  }
+
+  /* 限速先于读请求体：超限的请求体读都不读。键带 fb: 前缀，将来 /api 若共用同一个
+     binding 也不会互相计数。binding 未部署或自身报错时放行——它是防线不是依赖，
+     不能因为它坏了让正常反馈全部失败。 */
+  if (env && env.FB_RATE_LIMITER) {
+    try {
+      const rate = await env.FB_RATE_LIMITER.limit({
+        key: 'fb:' + (request.headers.get('cf-connecting-ip') || 'unknown'),
+      });
+      if (!rate.success) {
+        return new Response(
+          JSON.stringify({ error: 'rate_limited', message: '提交太频繁了，请一分钟后再试' }),
+          {
+            status: 429,
+            headers: {
+              'content-type': 'application/json; charset=utf-8',
+              'cache-control': 'no-store',
+              'retry-after': '60',
+            },
+          }
+        );
+      }
+    } catch (e) {
+      /* fail-open：限速器异常不拦正常提交 */
+    }
   }
 
   /* 先看声明长度，再真的读——避免有人拿几百 MB 的体会把 isolate 撑爆 */
