@@ -1431,6 +1431,21 @@ async function loadAll() {
   }
 }
 
+/* 账号身份字段：退出登录 / 登录态失效时，这些必须从内存里彻底删掉。
+   只清 name/outid/school 是不够的——phone / mobile / customerCode / needCard
+   同样属于「上一个账号的信息」，留着就会在下一次渲染时冒回屏幕上。
+   不在这里面的字段（如设备画像、公开配置）可以继承。与 Android 端同一份清单。 */
+const IDENTITY_KEYS = ['name', 'phone', 'mobile', 'outid', 'school',
+                       'customerCode', 'customerid', 'token', 'session',
+                       'needCard', 'uaModel'];
+
+function clearIdentity(cfg) {
+  const c = Object.assign({}, cfg || {});
+  IDENTITY_KEYS.forEach(k => { delete c[k]; });
+  c.hasToken = false;
+  return c;
+}
+
 /* ---------- 未登录态 ----------
    抽成独立函数有两个用处：接口返回「没登录」时渲染一次；首屏判断到
    「这个浏览器从没登录过」时也直接渲染，不发任何请求。 */
@@ -1451,6 +1466,20 @@ function renderNeedLogin(logged) {
   if (bg) bg.onclick = openGuide;
   $('#orderCard').classList.add('hidden');
   $('#balNum').textContent = '—';
+  /* 与 Android 端同一处理，三件事一起做：
+     ① 账号三行就地清空——网页端这个洞更隐蔽：退出登录的按钮在二级设置页，
+        返回「我的」不经过 renderMe()，旧姓名能一直挂到下次登录；
+     ② 身份出内存——/api/config 拉取失败（断网）时也绝不能留在 state.cfg 里，
+        否则下次切回「我的」又冒出来；
+     ③ 订单/余额/设置/记录出内存——屏幕清内存不清，切个页签又回来了。 */
+  $('#meName').textContent = '—';
+  $('#meId').textContent = '—';
+  $('#meSchool').textContent = '—';
+  state.cfg = clearIdentity(state.cfg);
+  state.orders = []; state.balance = null; state.settings = {};
+  rec.month = ''; rec.items = []; rec.total = 0; rec.count = 0; rec.page = 1;
+  rec.finished = true; rec.loading = false; rec.error = '登录后可查看用水记录'; rec.at = 0;
+  renderRec();
   $('#hName').textContent = greeting();
   $('#hSub').textContent = '';
   /* 登录态失效：先给一条明确提示，再弹登录框，避免打开页面不知道发生了什么 */
