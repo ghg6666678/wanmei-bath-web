@@ -42,14 +42,14 @@ WX_VERSION = 10552101
 # 的新旗舰）——旧机型在 2026 年仍以原厂最后版本上网更自然，也避免「新机跑老系统」的倒挂。
 # 前缀差异由厂商决定，不要按品牌习惯去「修正」：
 #   UP1A / UKQ1 = 高通、联发科通用的 AOSP 14 基线（OPPO/vivo/一加用 UP1A，小米/红米用 UKQ1）
-#   HONORBVL-AN00 = 荣耀沿用的「厂商+型号」写法，真实机器上就是这个格式
+#   HONORPGT-AN00 = 荣耀沿用的「厂商+型号」写法，真实机器上就是这个格式
 DEVICES = [
     {'model': 'PJE110',     'os': '14', 'build': 'UP1A.231005.007'},   # 一加 Ace 3（ColorOS 14）
     {'model': 'M2011K2C',   'os': '14', 'build': 'UKQ1.230804.001'},   # 小米 11（末版 HyperOS 1.0）
     {'model': '22041211AC', 'os': '14', 'build': 'UKQ1.230804.001'},   # Redmi K50（末版 HyperOS 1.0）
     {'model': 'PHZ110',     'os': '14', 'build': 'UP1A.231005.007'},   # OPPO Find X7（ColorOS 14）
     {'model': 'V2309A',     'os': '14', 'build': 'UP1A.231005.007'},   # vivo X100（OriginOS 4）
-    {'model': 'BVL-AN00',   'os': '14', 'build': 'HONORBVL-AN00'},     # 荣耀 Magic6（MagicOS 8）
+    {'model': 'PGT-AN00',   'os': '14', 'build': 'HONORPGT-AN00'},     # 荣耀 Magic5（MagicOS 8.0，出厂 7.1/13）
 ]
 DALVIK_TMPL = 'Dalvik/2.1.0 (Linux; U; Android {os}; {model} Build/{build})'
 # Chrome 与 wanxiao H5 版本号跟设备无关（各自独立升级），只有机型与系统版本随画像走；
