@@ -37,6 +37,25 @@ const REDIRECT_HOSTS = new Set(['www.yuezao.org']);
    / 是主入口，/web 和 /web/ 是早期 PWA 的 start_url 和老书签。 */
 const SHELL_PATHS = new Set(['/', '/web', '/web/']);
 
+/* ---------- 官网反馈中转（2026-11-18） ----------
+   背景：反馈页 2026-11-13 随官网上 Cloudflare 后就不能用了。云服务的 publishableKey
+   绑定的是「应用发布域名」的**精确 Origin**（服务端原话：the request origin is not
+   allowed for this client），yuezao.org 不在其中，浏览器直连数据库一律 403。
+   这不是脱离托管导致的，是页面搬家那天就断的——数据库里 0 行历史反馈即证据。
+
+   修法：边缘做一层同源中转。页面 POST /fb → 这里带上 x-wb-webapp-access-key 转发到
+   数据库 REST（Worker 端 fetch 不带 Origin 头，实测 201）。页面不需要跨域、也不需要
+   再从 CDN 加载第三方 SDK。
+
+   校验只做结构层：类型白名单、长度、体积上限，字段全部由服务端重新拼，不信任页面传的
+   ua / page。频率限制交给 Cloudflare WAF（免费额度外的刷单风险与公开 key 本身同级）。 */
+const CLOUD_FEEDBACK_URL = UPSTREAM + '/.cloud/database/rest/feedback';
+const CLOUD_KEY = 'wbpk_TqUzuRkO7rbqBIQnQmlleM_mREdrABP0Nt9qaKtSyqvDi5o7kf85UGD';
+const FB_KINDS = new Set(['issue', 'suggest', 'other']);
+const FB_MIN = 10;              /* 与页面提示一致：至少 10 个字 */
+const FB_MAX = 2000;            /* 与 textarea maxlength 一致 */
+const FB_RAW_LIMIT = 8192;      /* 原始请求体上限，挡掉把这张表当网盘用的 */
+
 /* ---------- 紧急下架开关（2026-11-15） ----------
    事故：有用户打开网页端，看到的是另一个账号（朋友在自己手机上登录过）的数据。
    这说明上游服务端的会话没有按浏览器隔离——在根因修复并验证之前，网页端整站下线。
@@ -81,6 +100,7 @@ export default {
     if (WEB_OFFLINE && WEB_HOSTS.has(host)) return maintenance();
 
     if (WEB_HOSTS.has(host)) {
+      if (url.pathname === '/fb') return handleFeedback(request, url);
       /* 首页外壳由边缘直出，不再回源。
          它是 114KB 的纯前端单文件、内容不随用户变化，放在边缘等于把
          「边缘 ↔ 亚洲上游」这一跳整段削掉；上游只留 /api/ 的业务请求。
@@ -107,6 +127,10 @@ export default {
           301
         );
       }
+
+      /* 官网反馈：同源中转，见文件头 CLOUD_FEEDBACK_URL 那段说明。
+         必须放在 /api/ 判断之前——它不是上游的业务接口。 */
+      if (url.pathname === '/fb') return handleFeedback(request, url);
 
       /* 官网目前没有任何接口调用。下架期间这条路径也要断——它和 web 子域一样
          能通到上游那套未隔离的会话。 */
@@ -156,6 +180,102 @@ function maintenance() {
       'cache-control': 'no-store, must-revalidate',
     },
   });
+}
+
+/* ---------- 官网反馈中转 ---------- */
+
+function fbJson(obj, status) {
+  return new Response(JSON.stringify(obj), {
+    status: status || 200,
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+  });
+}
+
+async function handleFeedback(request, url) {
+  if (request.method !== 'POST') {
+    return fbJson({ error: 'method_not_allowed', message: '只接受 POST' }, 405);
+  }
+
+  /* 先看声明长度，再真的读——避免有人拿几百 MB 的体会把 isolate 撑爆 */
+  const declared = Number(request.headers.get('content-length') || 0);
+  if (declared > FB_RAW_LIMIT) {
+    return fbJson({ error: 'too_large', message: '请求体过大' }, 413);
+  }
+  const raw = await request.text();
+  if (raw.length > FB_RAW_LIMIT) {
+    return fbJson({ error: 'too_large', message: '请求体过大' }, 413);
+  }
+
+  let body;
+  try {
+    body = JSON.parse(raw);
+  } catch (e) {
+    return fbJson({ error: 'bad_json', message: '请求格式不对' }, 400);
+  }
+  if (!body || typeof body !== 'object') {
+    return fbJson({ error: 'bad_json', message: '请求格式不对' }, 400);
+  }
+
+  const kind = FB_KINDS.has(String(body.kind)) ? String(body.kind) : 'issue';
+  const content = String(body.content == null ? '' : body.content).trim();
+  const contact = String(body.contact == null ? '' : body.contact).trim().slice(0, 120);
+  const version = String(body.app_version == null ? '' : body.app_version).trim().slice(0, 32);
+
+  if (content.length < FB_MIN) {
+    return fbJson({ error: 'content_too_short', message: '内容至少 10 个字' }, 400);
+  }
+  if (content.length > FB_MAX) {
+    return fbJson({ error: 'content_too_long', message: '内容不能超过 2000 字' }, 400);
+  }
+
+  /* page / ua 一律由边缘判定，不用页面传来的值：页面能被改，请求头不能 */
+  const ref = request.headers.get('referer') || '';
+  let page = 'direct';
+  try {
+    if (ref && new URL(ref).hostname.endsWith('yuezao.org')) page = 'referrer';
+  } catch (e) {
+    page = 'direct';
+  }
+  const ua = (request.headers.get('user-agent') || '').slice(0, 300);
+
+  const row = {
+    kind: kind,
+    content: content,
+    contact: contact || null,
+    app_version: version || null,
+    page: page,
+    ua: ua,
+  };
+
+  let res;
+  try {
+    res = await fetch(CLOUD_FEEDBACK_URL, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-wb-webapp-access-key': CLOUD_KEY,
+        prefer: 'return=minimal',
+      },
+      body: JSON.stringify(row),
+    });
+  } catch (e) {
+    return fbJson({ error: 'upstream_unreachable', message: '反馈服务暂时不可达' }, 502);
+  }
+
+  if (res.ok) return fbJson({ ok: true });
+
+  /* 上游是 PostgREST 风格：错误码在 body 里的 code 字段（DATABASE_xxxxx） */
+  const text = await res.text().catch(() => '');
+  if (text.indexOf('23514') >= 0) {
+    return fbJson({ error: 'content_length', message: '内容长度不符合要求' }, 400);
+  }
+  if (text.indexOf('42501') >= 0) {
+    return fbJson({ error: 'denied', message: '反馈表权限被拒' }, 502);
+  }
+  if (text.indexOf('42P01') >= 0) {
+    return fbJson({ error: 'no_table', message: '反馈表不存在' }, 502);
+  }
+  return fbJson({ error: 'upstream_error', message: '反馈服务返回 ' + res.status }, 502);
 }
 
 /** 公开域名路径 → 上游路径。两端共用 /api/*，静态资源按 host 分流。 */
