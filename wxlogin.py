@@ -24,13 +24,18 @@ requests.packages.urllib3.disable_warnings()
 IV = b'66666666'
 WX_VERSION = 10552101
 
+# 登录请求体里的 telephoneInfo：两个参考实现（zhongbr 2020、fuqiuluo 2024）都只是硬编码 '12'，
+# 谁也没写清它是 Android 版本号还是客户端信息版本号；手上的抓包也反证不了。
+# 语义未确立之前**故意不随设备画像走**——它是这套请求里唯一「有意保持原值」的设备类字段，
+# 别当成漏改去"修正"。等哪天真机抓包能看出它随系统版本变化，再改成 self.device['os']。
+TELEPHONE_INFO = '12'
+
 # ---------- 设备画像（2026-11-16 起：登录握手与业务请求统一描述同一台设备） ----------
-# 登录握手有【四处】向上游描述设备：
+# 登录握手有【三处】向上游描述设备：
 #   1. 请求头 User-Agent —— Dalvik 格式（安卓 http.agent 的原生样式）
 #   2. 请求体里的 shebeixinghao / telephoneModel —— 服务器登记的设备字段
-#   3. 请求体里的 telephoneInfo —— 安卓系统版本号（旧代码硬编码 '12'，与任何画像都对不上；
-#      2026-11-18 起随画像走，见 login_sms / login_pwd）
-#   4. 登录成功后所有业务请求的 H5 WebView UA（vwater.Session 使用，见 h5_ua）
+#   3. 登录成功后所有业务请求的 H5 WebView UA（vwater.Session 使用，见 h5_ua）
+# 另有请求体的 telephoneInfo，**语义未证实**（见 TELEPHONE_INFO），不算画像一部分。
 # 2026-11-15 之前这里是三台互不相干的手机：UA 头报 2020 年的华为、请求体报 LGE-AN10、
 # 业务 UA 报 PJE110 —— 同一个出口 IP 上三种请求三种设备，比「同 IP 多账号」更容易被聚类。
 # 现在登录时从池里挑一套自洽画像，随票据封进浏览器 cookie（server._login_config），
@@ -233,7 +238,7 @@ class WxLogin:
             'shebeixinghao': self.model,
             'sms': code,
             'systemType': 'android',
-            'telephoneInfo': self.device['os'],
+            'telephoneInfo': TELEPHONE_INFO,
             'telephoneModel': self.model,
             'wanxiaoVersion': WX_VERSION,
         })
@@ -253,7 +258,7 @@ class WxLogin:
             'requestMethod': 'cam_iface46/loginnew.action',
             'shebeixinghao': self.model,
             'systemType': 'android',
-            'telephoneInfo': self.device['os'],
+            'telephoneInfo': TELEPHONE_INFO,
             'telephoneModel': self.model,
             'type': '1',
             'userName': phone,
