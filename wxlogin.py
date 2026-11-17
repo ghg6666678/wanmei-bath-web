@@ -25,22 +25,31 @@ IV = b'66666666'
 WX_VERSION = 10552101
 
 # ---------- 设备画像（2026-11-16 起：登录握手与业务请求统一描述同一台设备） ----------
-# 登录握手有【三处】向上游描述设备：
+# 登录握手有【四处】向上游描述设备：
 #   1. 请求头 User-Agent —— Dalvik 格式（安卓 http.agent 的原生样式）
 #   2. 请求体里的 shebeixinghao / telephoneModel —— 服务器登记的设备字段
-#   3. 登录成功后所有业务请求的 H5 WebView UA（vwater.Session 使用，见 h5_ua）
+#   3. 请求体里的 telephoneInfo —— 安卓系统版本号（旧代码硬编码 '12'，与任何画像都对不上；
+#      2026-11-18 起随画像走，见 login_sms / login_pwd）
+#   4. 登录成功后所有业务请求的 H5 WebView UA（vwater.Session 使用，见 h5_ua）
 # 2026-11-15 之前这里是三台互不相干的手机：UA 头报 2020 年的华为、请求体报 LGE-AN10、
 # 业务 UA 报 PJE110 —— 同一个出口 IP 上三种请求三种设备，比「同 IP 多账号」更容易被聚类。
 # 现在登录时从池里挑一套自洽画像，随票据封进浏览器 cookie（server._login_config），
 # 7 天内同一浏览器始终是「同一台手机、同一次安装」（deviceId 一并固定）。
 # 型号与 build 只要格式正确即可：上游从未校验过具体型号（此前三台混用也从未被拒），
 # 重要的是会话内自洽、且别让全站所有账号共用一个型号。
+# 2026-11-18 起：全池统一为 Android 14，六台不同品牌的国内常见机型，型号互不重复。
+# 选型原则：都是真实存在、且**官方最终系统就是 Android 14** 的老机器（不是跑着 Android 16
+# 的新旗舰）——旧机型在 2026 年仍以原厂最后版本上网更自然，也避免「新机跑老系统」的倒挂。
+# 前缀差异由厂商决定，不要按品牌习惯去「修正」：
+#   UP1A / UKQ1 = 高通、联发科通用的 AOSP 14 基线（OPPO/vivo/一加用 UP1A，小米/红米用 UKQ1）
+#   HONORBVL-AN00 = 荣耀沿用的「厂商+型号」写法，真实机器上就是这个格式
 DEVICES = [
-    {'model': 'PJE110',     'os': '16', 'build': 'BP3A.250605.014'},
-    {'model': 'M2012K11AC', 'os': '13', 'build': 'TP1A.220624.014'},
-    {'model': '23127PN0CC', 'os': '14', 'build': 'UP1A.231005.007'},
-    {'model': 'CPH2611',    'os': '14', 'build': 'UP1A.231005.007'},
-    {'model': 'V2346A',     'os': '15', 'build': 'AP3A.241105.013'},
+    {'model': 'PJE110',     'os': '14', 'build': 'UP1A.231005.007'},   # 一加 Ace 3（ColorOS 14）
+    {'model': 'M2011K2C',   'os': '14', 'build': 'UKQ1.230804.001'},   # 小米 11（末版 HyperOS 1.0）
+    {'model': '22041211AC', 'os': '14', 'build': 'UKQ1.230804.001'},   # Redmi K50（末版 HyperOS 1.0）
+    {'model': 'PHZ110',     'os': '14', 'build': 'UP1A.231005.007'},   # OPPO Find X7（ColorOS 14）
+    {'model': 'V2309A',     'os': '14', 'build': 'UP1A.231005.007'},   # vivo X100（OriginOS 4）
+    {'model': 'BVL-AN00',   'os': '14', 'build': 'HONORBVL-AN00'},     # 荣耀 Magic6（MagicOS 8）
 ]
 DALVIK_TMPL = 'Dalvik/2.1.0 (Linux; U; Android {os}; {model} Build/{build})'
 # Chrome 与 wanxiao H5 版本号跟设备无关（各自独立升级），只有机型与系统版本随画像走；
@@ -224,7 +233,7 @@ class WxLogin:
             'shebeixinghao': self.model,
             'sms': code,
             'systemType': 'android',
-            'telephoneInfo': '12',
+            'telephoneInfo': self.device['os'],
             'telephoneModel': self.model,
             'wanxiaoVersion': WX_VERSION,
         })
@@ -244,7 +253,7 @@ class WxLogin:
             'requestMethod': 'cam_iface46/loginnew.action',
             'shebeixinghao': self.model,
             'systemType': 'android',
-            'telephoneInfo': '12',
+            'telephoneInfo': self.device['os'],
             'telephoneModel': self.model,
             'type': '1',
             'userName': phone,

@@ -63,11 +63,12 @@ def server_clock():
     return {'has': True, 'nowMs': ms + int(elapsed * 1000),
             'skewMs': ms - int(local * 1000), 'from': _CLOCK['from']}
 
-# 业务请求 UA：这份默认值 = 逆向时从真实设备上抓下来的串。
+# 业务请求 UA：这份默认值 = 逆向时从真实设备上抓下来的串（机型/系统已按 2026-11-18 的
+# 统一画像改成 Android 14，避免旧票据成为全站唯一的 Android 16 异常值）。
 # 2026-11-16 起，登录会话改用 wxlogin 选定的设备画像（随票据保存，见 server._login_config），
 # 与登录握手的 Dalvik UA / shebeixinghao 描述同一台设备；旧票据（没有 ua 字段）继续用
 # 这份默认——不强制重登，重新登录后自然带上画像。
-UA = ('Mozilla/5.0 (Linux; Android 16; PJE110) AppleWebKit/537.36 (KHTML, like Gecko) '
+UA = ('Mozilla/5.0 (Linux; Android 14; PJE110) AppleWebKit/537.36 (KHTML, like Gecko) '
       'Chrome/138.0.7204.179 Mobile Safari/537.36 wanxiao/5.8.36')
 H5_ORIGIN = 'https://xqh5.17wanxiao.com'
 SIGN_KEY = b'wanmeixiaoyuan11'   # 16 字节标准 AES-128，官方 H5 前端 JS 明文常量
