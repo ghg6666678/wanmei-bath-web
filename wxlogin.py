@@ -21,9 +21,58 @@ from Crypto.Util.Padding import pad, unpad
 
 requests.packages.urllib3.disable_warnings()
 
-UA = 'Dalvik/2.1.0 (Linux; U; Android 5.1.1; HUAWEI MLA-AL10 Build/HUAWEIMLA-AL10)'
 IV = b'66666666'
 WX_VERSION = 10552101
+
+# ---------- 设备画像（2026-11-16 起：登录握手与业务请求统一描述同一台设备） ----------
+# 登录握手有【三处】向上游描述设备：
+#   1. 请求头 User-Agent —— Dalvik 格式（安卓 http.agent 的原生样式）
+#   2. 请求体里的 shebeixinghao / telephoneModel —— 服务器登记的设备字段
+#   3. 登录成功后所有业务请求的 H5 WebView UA（vwater.Session 使用，见 h5_ua）
+# 2026-11-15 之前这里是三台互不相干的手机：UA 头报 2020 年的华为、请求体报 LGE-AN10、
+# 业务 UA 报 PJE110 —— 同一个出口 IP 上三种请求三种设备，比「同 IP 多账号」更容易被聚类。
+# 现在登录时从池里挑一套自洽画像，随票据封进浏览器 cookie（server._login_config），
+# 7 天内同一浏览器始终是「同一台手机、同一次安装」（deviceId 一并固定）。
+# 型号与 build 只要格式正确即可：上游从未校验过具体型号（此前三台混用也从未被拒），
+# 重要的是会话内自洽、且别让全站所有账号共用一个型号。
+DEVICES = [
+    {'model': 'PJE110',     'os': '16', 'build': 'BP3A.250605.014'},
+    {'model': 'M2012K11AC', 'os': '13', 'build': 'TP1A.220624.014'},
+    {'model': '23127PN0CC', 'os': '14', 'build': 'UP1A.231005.007'},
+    {'model': 'CPH2611',    'os': '14', 'build': 'UP1A.231005.007'},
+    {'model': 'V2346A',     'os': '15', 'build': 'AP3A.241105.013'},
+]
+DALVIK_TMPL = 'Dalvik/2.1.0 (Linux; U; Android {os}; {model} Build/{build})'
+# Chrome 与 wanxiao H5 版本号跟设备无关（各自独立升级），只有机型与系统版本随画像走；
+# Chrome/138 是从真实设备上抓下来的版本，保持不动。
+H5_UA_TMPL = ('Mozilla/5.0 (Linux; Android {os}; {model}) AppleWebKit/537.36 '
+              '(KHTML, like Gecko) Chrome/138.0.7204.179 Mobile Safari/537.36 wanxiao/5.8.36')
+
+
+def device_from_cfg(cfg):
+    """从票据字段还原设备画像。字段不全（旧票据 / 从没登录过）返回 None，
+    让登录时随机挑一套新的——旧票据不强制重登，登录成功后自然补全。"""
+    if not isinstance(cfg, dict):
+        return None
+    m, o, b = cfg.get('devModel'), cfg.get('devOs'), cfg.get('devBuild')
+    if m and o and b:
+        return {'model': str(m), 'os': str(o), 'build': str(b)}
+    return None
+
+
+def device_from_dev(dev):
+    """浏览器 localStorage 里记住的设备画像：登出、票据过期（7 天）后，
+    同一个浏览器重新登录还是「同一台手机、同一次安装」，而不是每次换新。
+
+    只接受与 DEVICES 池完全一致的组合——这个字段来自客户端请求体，不能让
+    它指定池外的任意机型串（那会把怪值注进 UA 头和 shebeixinghao）。对不上就当没有。"""
+    if not isinstance(dev, dict):
+        return None
+    for d in DEVICES:
+        if (dev.get('model') == d['model'] and dev.get('os') == d['os']
+                and dev.get('build') == d['build']):
+            return dict(d)
+    return None
 
 # 服务端域名（新老两套，实测哪个通用哪个）
 HOSTS = ['https://app.17wanxiao.com:443', 'https://server.17wanxiao.com']
@@ -44,9 +93,21 @@ def _des_decrypt(raw: bytes, key: bytes) -> bytes:
 
 
 class WxLogin:
-    def __init__(self, host=None, device_id=None):
+    def __init__(self, host=None, device_id=None, device=None):
         self.host = host or HOSTS[0]
+        # device_id：真实 App 首装生成后一般不变。传进来就沿用（同一浏览器重登
+        # 还是同一次“安装”），否则新建——首个 UUID 就是这台“手机”的 ID。
         self.device_id = device_id or str(uuid.uuid4())
+        # 画像三件套：显式传入（重登还原）优先，否则从池里随机挑一套。
+        if not (isinstance(device, dict) and device.get('model')
+                and device.get('os') and device.get('build')):
+            device = random.choice(DEVICES)
+        self.device = dict(device)
+        self.model = self.device['model']
+        # 登录握手 UA（Dalvik）与业务请求 UA（H5 WebView）格式本来就不同——
+        # 真实用户在这两个端点上也呈现两种 UA；要统一的是“描述同一台设备”。
+        self.dalvik_ua = DALVIK_TMPL.format(**self.device)
+        self.h5_ua = H5_UA_TMPL.format(**self.device)
         self.session_id = ''
         self.app_key = ''
         self.token = ''
@@ -59,7 +120,7 @@ class WxLogin:
 
     # ---------- 底层 ----------
     def _post(self, url, payload, sign=None):
-        headers = {'User-Agent': UA, 'Content-Type': 'application/text;charset=UTF-8'}
+        headers = {'User-Agent': self.dalvik_ua, 'Content-Type': 'application/text;charset=UTF-8'}
         if sign:
             headers['campusSign'] = sign
         r = requests.post(url, data=json.dumps(payload, separators=(',', ':'), ensure_ascii=False).encode('utf-8'),
@@ -160,11 +221,11 @@ class WxLogin:
             'netWork': 'wifi',
             'qudao': 'tencent',
             'requestMethod': 'cam_iface46/registerUsersByTelAndLoginNew.action',
-            'shebeixinghao': 'LGE-AN10',
+            'shebeixinghao': self.model,
             'sms': code,
             'systemType': 'android',
             'telephoneInfo': '12',
-            'telephoneModel': 'LGE-AN10',
+            'telephoneModel': self.model,
             'wanxiaoVersion': WX_VERSION,
         })
         return self._parse_login(resp)
@@ -181,10 +242,10 @@ class WxLogin:
             'password': pwd_list,
             'qudao': 'tencent',
             'requestMethod': 'cam_iface46/loginnew.action',
-            'shebeixinghao': 'LGE-AN10',
+            'shebeixinghao': self.model,
             'systemType': 'android',
             'telephoneInfo': '12',
-            'telephoneModel': 'LGE-AN10',
+            'telephoneModel': self.model,
             'type': '1',
             'userName': phone,
             'wanxiaoVersion': WX_VERSION,

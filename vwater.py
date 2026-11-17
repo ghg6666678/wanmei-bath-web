@@ -63,6 +63,10 @@ def server_clock():
     return {'has': True, 'nowMs': ms + int(elapsed * 1000),
             'skewMs': ms - int(local * 1000), 'from': _CLOCK['from']}
 
+# 业务请求 UA：这份默认值 = 逆向时从真实设备上抓下来的串。
+# 2026-11-16 起，登录会话改用 wxlogin 选定的设备画像（随票据保存，见 server._login_config），
+# 与登录握手的 Dalvik UA / shebeixinghao 描述同一台设备；旧票据（没有 ua 字段）继续用
+# 这份默认——不强制重登，重新登录后自然带上画像。
 UA = ('Mozilla/5.0 (Linux; Android 16; PJE110) AppleWebKit/537.36 (KHTML, like Gecko) '
       'Chrome/138.0.7204.179 Mobile Safari/537.36 wanxiao/5.8.36')
 H5_ORIGIN = 'https://xqh5.17wanxiao.com'
@@ -106,6 +110,9 @@ class Session:
 
     def __init__(self, cfg):
         self.cfg = cfg
+        # 该会话的业务 UA：优先用票据里随登录保存的画像 UA（与登录握手的
+        # Dalvik UA 同一台设备，见 wxlogin.DEVICES），旧票据回退模块默认值。
+        self.ua = str(cfg.get('ua') or '') or UA
         self.cj = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self.cj), _NoRedirect())
@@ -118,7 +125,7 @@ class Session:
     def _call(self, path, data=None, headers=None, referer=None):
         body = urllib.parse.urlencode(data, doseq=True).encode() if data else None
         req = urllib.request.Request(BASE + path, data=body)
-        req.add_header('User-Agent', UA)
+        req.add_header('User-Agent', self.ua)
         req.add_header('Origin', H5_ORIGIN)
         req.add_header('Accept', 'application/json, text/plain, */*')
         if referer:

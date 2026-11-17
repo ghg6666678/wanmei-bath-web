@@ -62,9 +62,30 @@ _PENDING = {}
 _PENDING_TTL = 300
 
 
-def _wx_new():
+def _wx_new(cfg=None, dev=None):
+    """新建登录握手。设备身份的来源优先级：
+
+    1. 当前票据里的画像与 deviceId（还登录着 → 重登就是同一台手机）
+    2. 浏览器 localStorage 记住的那套（登出 / 票据过期后仍是同一台；
+       dev 是前端 POST /api/native 时随请求带上来的本机记录）
+    3. 都没有：随机挑一套画像、生成新 deviceId（这个浏览器第一次登录）
+
+    服务端全程不落盘：票据在加密 cookie 里，localStorage 在用户浏览器里。
+    """
     import wxlogin
-    w = wxlogin.WxLogin(host=wxlogin.HOSTS[0])
+    cfg = cfg or {}
+    dev = dev if isinstance(dev, dict) else {}
+    device = wxlogin.device_from_cfg(cfg) or wxlogin.device_from_dev(dev)
+    did = str(cfg.get('deviceId') or dev.get('id') or '').strip()
+    if did:
+        try:
+            import uuid
+            uuid.UUID(did)
+        except (ValueError, TypeError, AttributeError):
+            did = ''
+    w = wxlogin.WxLogin(host=wxlogin.HOSTS[0],
+                        device_id=(did or None),
+                        device=device)
     w.exchange_secret()
     return w
 
@@ -118,6 +139,14 @@ def _login_config(w, user, phone):
         'name': pick('name', 'userName'),
         'school': pick('customName_', 'schoolName', 'customerName'),
         'mobile': phone,
+        # 设备画像（2026-11-16）：登录握手与业务请求统一描述同一台“设备”，
+        # 随票据封进浏览器 cookie。重登时据此还原（见 _wx_new），业务请求由
+        # vwater.Session 直接使用 ua 字段。旧票据没有这些字段 → 回退默认 UA。
+        'deviceId': w.device_id,
+        'ua': w.h5_ua,
+        'devModel': w.model,
+        'devOs': w.device['os'],
+        'devBuild': w.device['build'],
     }
 
 
@@ -309,7 +338,8 @@ class Handler(BaseHTTPRequestHandler):
             if w is None:
                 sid = secrets.token_hex(16)
                 try:
-                    w = _wx_new()
+                    # 新建握手时沿用设备身份：票据里的 > 前端 localStorage 记住的 > 随机挑
+                    w = _wx_new(self.current_cfg(), body.get('dev'))
                 except Exception as e:
                     return {'ok': False, 'error': '初始化登录失败: %s' % e}
             try:
@@ -348,7 +378,10 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception:
                         pass
                 self._hdr('Set-Cookie', statebox.clear_cookie(statebox.PENDING_COOKIE))
-                return {'ok': True, 'data': {}}
+                # 把这台「设备」发还给前端存进 localStorage：登出、票据过期（7 天）
+                # 之后重登仍是同一台。deviceId 是随机 UUID + 型号串，不含个人信息。
+                return {'ok': True, 'data': {'dev': {'id': w.device_id, 'model': w.model,
+                                                     'os': w.device['os'], 'build': w.device['build']}}}
             except Exception as e:
                 return {'ok': False, 'error': '登录失败: %s' % e}
 
@@ -614,6 +647,10 @@ def _public_config(cfg=None):
         'hasToken': bool(cfg.get('token')),
         # 缺一卡通客户号或学号 = 官方那边还没绑校园卡，前端据此给绑定指引
         'needCard': not (cfg.get('customerid') and cfg.get('outid')),
+        # 设备画像（非账号信息，诊断页展示用）：服务端替这个浏览器向上游报的“设备”。
+        # 旧票据没有画像时为 null，前端隐藏那一行。
+        'uaModel': ('%s · Android %s' % (cfg.get('devModel'), cfg.get('devOs')))
+            if cfg.get('devModel') and cfg.get('devOs') else None,
     }
 
 

@@ -990,7 +990,7 @@ function nativeCall(name) {
     if (offlineNow()) return Promise.reject(new Error('网络未连接'));
     return fetch('/api/native', {method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name: name, args: extra})})
+      body: JSON.stringify({name: name, args: extra, dev: getStoredDev()})})
       .catch(e => { throw new Error(netText(e && e.message, 'native ' + name) || '网络未连接'); })
       .then(r => r.json().catch(() => { throw new Error('网络不太稳定，请稍后重试'); }))
       .then(j => { if (!j.ok) throw new Error(netText(j.error, 'native ' + name) || '操作失败'); return j.data; });
@@ -2146,6 +2146,11 @@ function diagLines() {
   L.push('环境       ' + (navigator.platform || '—') + ' · 屏幕 ' + screen.width + '×' + screen.height +
          '@' + (window.devicePixelRatio || 1) + ' · ' + (navigator.language || '—'));
   L.push('UA         ' + String(navigator.userAgent || '').slice(0, 160));
+  /* 上游画像：服务端替这个浏览器向完美校园报的“设备”，登录握手（Dalvik UA 与
+     shebeixinghao 等请求体字段）和业务请求共用同一台。2026-11-16 之前三处
+     互相矛盾（华为/LG/realme），现在随票据固定，这里展示出来便于核对。 */
+  const upModel = (state.cfg || {}).uaModel;
+  if (upModel) L.push('上游画像   ' + upModel + '（登录与业务请求同一台设备）');
   L.push('网络       ' + diagNet());
   L.push('登录态     ' + ((state.cfg || {}).hasToken ? '已登录' : '未登录') + '（这里不记录手机号与姓名）');
   L.push('服务器时间 ' + (state.serverCalibrated
@@ -2407,6 +2412,20 @@ function setLocalPhone(v) {
     else localStorage.removeItem(LOCAL_PHONE_KEY);
   } catch (e) { }
 }
+/* 登录设备画像：服务端替这个浏览器向完美校园报的那台「手机」。登录成功时
+   服务端发回，存进 localStorage——登出、票据过期（7 天）后重登，仍是同一台
+   （画像随加密票据走，票据没了它还在）。只是型号串 + 随机 UUID，不含个人信息。 */
+const DEV_KEY = 'yuezaoDev';
+function getStoredDev() {
+  try { return JSON.parse(localStorage.getItem(DEV_KEY) || 'null') || null; } catch (e) { return null; }
+}
+function setStoredDev(d) {
+  try {
+    if (d && typeof d === 'object' && d.id && d.model && d.os && d.build)
+      localStorage.setItem(DEV_KEY, JSON.stringify(d));
+    else localStorage.removeItem(DEV_KEY);
+  } catch (e) { }
+}
 let __lgTimer = null;
 let __autoLoginShown = false;   /* 冷启动自动弹一次登录；主动退出后不再自动弹 */
 function openLogin() {
@@ -2454,7 +2473,8 @@ $('#lgSubmit').onclick = async () => {
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
   $('#lgWarn').style.display = 'none';
   try {
-    await nativeCall('doLogin', phone, code);
+    const r = await nativeCall('doLogin', phone, code);
+    if (r && r.dev) setStoredDev(r.dev);   /* 设备记进本机：登出、票据过期后重登仍是同一台 */
     setLocalPhone(phone);          /* 完整号码只留在本机，登录框下次预填用 */
     diagAdd('app', '登录', '', '成功');
     __markLogged(true);          /* 记下「这个浏览器登录过」，下次打开才值得去拉数据 */
@@ -2694,9 +2714,15 @@ $('#guideWx').onclick = () => {
      2. 把 WEB_BUILD 改成同一个值
    纯后端改动（server.py）不需要动这里。 */
 
-const WEB_BUILD = '2026.11.15';
+const WEB_BUILD = '2026.11.16';
 const WEB_LOG_KEY = 'webBuildSeen';
 const WEB_LOG = [
+  { v: '2026.11.16', items: [
+    '服务端统一设备画像：登录验证码、登录提交与所有业务请求，向上游报的是同一台“手机”',
+    '每个浏览器固定一套画像，重新登录不再每次“换手机”',
+    '退出登录或票据过期后重登，仍是同一台“设备”（画像记在本机浏览器里）',
+    '诊断信息页新增「上游画像」一行，可以核对当前报的是什么设备',
+  ] },
   { v: '2026.11.15', items: [
     '断网时不再弹原始报错：首页直接说明「网络未连接」，连上后刷新即可',
     '刷新失败不再清空已经显示的浴室列表，旧内容留在屏幕上',
