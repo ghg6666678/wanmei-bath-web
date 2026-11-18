@@ -144,6 +144,13 @@ nav svg{width:22px;height:22px}
 .sheet.locked .bar-h::before{display:none}
 .sheet.locked .bar-h{background:var(--line);opacity:.45}
 .sheet h3{margin:0 0 4px;font-size:17px}
+/* 右上角叉号：所有可关闭弹层的统一出口。滚轮弹层头部自带「取消/确定」工具条，不摆叉号 */
+.sheet-x{position:absolute;top:5px;right:5px;width:36px;height:36px;padding:0;border:0;
+  display:flex;align-items:center;justify-content:center;background:transparent;
+  color:var(--ink3);border-radius:12px;cursor:pointer}
+.sheet-x svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+.sheet-x:hover{background:var(--line);color:var(--ink2)}
+.sheet-x:active{opacity:.55}
 .bkfree{font-size:13px;font-weight:500;color:var(--ok);margin-left:8px;
   white-space:nowrap;font-variant-numeric:tabular-nums}
 .sheet .hint{font-size:12.5px;color:var(--ink2);margin-bottom:14px;line-height:1.55}
@@ -496,11 +503,11 @@ input[type=tel]::placeholder{color:var(--ink3)}
 <div class="sheet-mask" id="mask"></div>
 <div class="sheet" id="bookSheet">
   <div class="bar-h"></div>
+  <button class="sheet-x" type="button" aria-label="关闭" title="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <h3><span id="bkTitle">预约浴室</span><span class="bkfree" id="bkFree"></span></h3>
   <div class="hint" id="bkHint"></div>
   <div class="warnbox" id="bkWarn" style="display:none"></div>
   <div style="display:flex;gap:9px">
-    <button class="btn ghost" style="flex:1;padding:15px" id="bkClose">关闭</button>
     <button class="btn" style="flex:1.6;padding:15px" id="bkSubmit">立即预约</button>
   </div>
 </div>
@@ -508,6 +515,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
 <!-- 登录弹层 -->
 <div class="sheet" id="loginSheet">
   <div class="bar-h"></div>
+  <button class="sheet-x" type="button" aria-label="关闭" title="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <h3>登录完美校园</h3>
   <div class="hint">
     用注册过完美校园的手机号登录。
@@ -525,7 +533,6 @@ input[type=tel]::placeholder{color:var(--ink3)}
   </div>
   <div class="warnbox" id="lgWarn" style="display:none"></div>
   <div style="display:flex;gap:9px">
-    <button class="btn ghost" style="flex:1;padding:15px" id="lgClose">关闭</button>
     <button class="btn" style="flex:1.6;padding:15px" id="lgSubmit">登录</button>
   </div>
   <div class="tipnote" style="text-align:center;margin-top:10px">
@@ -560,6 +567,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
 <!-- 确认弹层（替代 WebView 里很突兀的原生 confirm） -->
 <div class="sheet" id="cfSheet">
   <div class="bar-h"></div>
+  <button class="sheet-x" type="button" aria-label="关闭" title="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <h3 id="cfTitle">确认</h3>
   <div class="hint" id="cfMsg"></div>
   <div style="display:flex;gap:9px;margin-top:16px">
@@ -571,6 +579,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
 <!-- 网页端更新日志：部署后第一次打开时弹一次 -->
 <div class="sheet" id="clSheet">
   <div class="bar-h"></div>
+  <button class="sheet-x" type="button" aria-label="关闭" title="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <h3 id="clTitle">更新日志</h3>
   <div class="hint" id="clSub"></div>
   <div id="clBody"></div>
@@ -580,10 +589,10 @@ input[type=tel]::placeholder{color:var(--ink3)}
 <!-- 通用选择器 -->
 <div class="sheet" id="pickSheet">
   <div class="bar-h"></div>
+  <button class="sheet-x" type="button" aria-label="关闭" title="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <h3 id="pickTitle">选择</h3>
   <div class="hint" id="pickHint"></div>
   <div class="picklist" id="pickList"></div>
-  <button class="btn ghost" style="width:100%;margin-top:14px" id="pickCancel">取消</button>
 </div>
 
 <!-- 年月滚轮：对应原版的 van-datetime-picker type="year-month" -->
@@ -604,6 +613,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
 <!-- 消费限时 / 限额：滑块 + 文本框联动 -->
 <div class="sheet" id="numSheet">
   <div class="bar-h"></div>
+  <button class="sheet-x" type="button" aria-label="关闭" title="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <h3 id="numTitle">消费限时</h3>
   <div class="hint" id="numHint"></div>
   <div class="numwarn" id="numWarn">
@@ -645,6 +655,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
      （任意二维码库，字节模式，纠错等级不低于 M）。 -->
 <div class="sheet" id="paySheet">
   <div class="bar-h"></div>
+  <button class="sheet-x" type="button" aria-label="关闭" title="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <h3>充值</h3>
 
   <!-- 微信内：整条链路都能走通，直接跳 -->
@@ -709,6 +720,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
 <!-- 设置里随时回看同一份条文 -->
 <div class="sheet" id="policySheet">
   <div class="bar-h"></div>
+  <button class="sheet-x" type="button" aria-label="关闭" title="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <h3>隐私政策</h3>
   <div class="hint" id="policySheetBody"
        style="max-height:52vh;overflow-y:auto;-webkit-overflow-scrolling:touch;line-height:1.8;font-size:13px"></div>
@@ -720,6 +732,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
 <!-- 余额提醒阈值 -->
 <div class="sheet" id="balThSheet">
   <div class="bar-h"></div>
+  <button class="sheet-x" type="button" aria-label="关闭" title="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <h3>余额提醒阈值</h3>
   <div class="hint" style="font-size:12.5px;color:var(--ink2);line-height:1.7">
     余额低于该值时标记「偏低」，预约时也会提醒。设为「关闭」则不提醒；余额 ≤ 0 的「余额不足」始终显示。
@@ -728,9 +741,8 @@ input[type=tel]::placeholder{color:var(--ink3)}
          style="width:100%;margin-top:14px;padding:11px 12px;border-radius:12px;border:1px solid var(--line);
                 background:var(--card);color:var(--ink);font-size:15px">
   <div style="display:flex;gap:9px;margin-top:14px">
-    <button class="btn ghost" style="flex:1" id="balThClose">关闭</button>
-    <button class="btn ghost" style="flex:1.2" id="balThOff">关闭提醒</button>
-    <button class="btn" style="flex:1.4" id="balThSave">保存</button>
+    <button class="btn ghost" style="flex:1" id="balThOff">关闭提醒</button>
+    <button class="btn" style="flex:1.2" id="balThSave">保存</button>
   </div>
 </div>
 
@@ -795,6 +807,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
 
 <div class="sheet" id="diagSheet">
   <div class="bar-h"></div>
+  <button class="sheet-x" type="button" aria-label="关闭" title="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <h3>诊断信息</h3>
   <div class="hint">这些内容只在本机生成，不联网、不上传，也不含手机号和姓名；<strong>存在这个浏览器里，刷新和关掉页面都不会丢</strong>。出问题时点「复制」，粘到反馈里——界面上只说「网络未连接」，这里才有原始原因。</div>
   <div class="diagbox" id="diagBody"></div>
@@ -1580,7 +1593,6 @@ $('#bkSubmit').onclick = async () => {
     btn.disabled = false; btn.textContent = '立即预约';
   }
 };
-$('#bkClose').onclick = hideSheet;   /* 鼠标没有下拉手势，桌面端要一个明确的关闭 */
 
 /* 通用确认弹层 */
 let __cfYes = null;
@@ -1770,7 +1782,6 @@ function openPicker(title, hint, options, current, cb, cols) {
   });
 }
 
-$('#pickCancel').onclick = hideSheet;   /* 选择器补「取消」，与滚轮/滑块弹层同一叫法 */
 
 /* ---------- 年月滚轮 ----------
    原版用的是 van-datetime-picker type="year-month"：两列上下滚、中间一条选中带。
@@ -2284,6 +2295,10 @@ $('#mask').onclick = () => {
   hideSheet();
 };
 
+/* 右上角叉号统一接线（锁定弹层本来就不摆叉号）。更新日志的「已读」在弹出时就记了，
+   所以叉号和「知道了」效果一致，不会反复弹 */
+document.querySelectorAll('.sheet-x').forEach(b => b.onclick = hideSheet);
+
 /* ---------- 弹层：按住顶部横条下拉关闭（跟手），背景不跟着滚 ---------- */
 const SHEET_CLOSE_DY = 90;
 let sheetDrag = null;
@@ -2486,7 +2501,6 @@ function openLogin() {
   showSheet('#loginSheet');
 }
 
-$('#lgClose').onclick = hideSheet;   /* 不想现在登录就先关掉，凭据失效时首页会再弹 */
 
 $('#lgSend').onclick = async () => {
   const phone = $('#lgPhone').value.trim();
@@ -2617,7 +2631,6 @@ $('#rowBalTh').onclick = () => {
   $('#balThInput').value = (cur === 'off' || !cur) ? '' : String(Number(cur) || 5);
   showSheet('#balThSheet');
 };
-$('#balThClose').onclick = hideSheet;   /* 不改动任何设置，直接关掉弹层 */
 $('#balThOff').onclick = () => {
   setBalTh('off'); renderBalance(); renderMe(); hideSheet(); toast('余额提醒已关闭');
 };
@@ -2765,9 +2778,13 @@ $('#guideWx').onclick = () => {
      2. 把 WEB_BUILD 改成同一个值
    纯后端改动（server.py）不需要动这里。 */
 
-const WEB_BUILD = '2026.11.18-2';
+const WEB_BUILD = '2026.11.18-3';
 const WEB_LOG_KEY = 'webBuildSeen';
 const WEB_LOG = [
+  { v: '2026.11.18-3', items: [
+    '弹窗统一改成右上角「叉号」关闭：预约、登录、充值、政策、诊断等所有弹层都一样',
+    '底部为关闭而加的「关闭 / 取消」按钮撤掉；「立即预约 / 保存」等功能按钮不变',
+  ] },
   { v: '2026.11.18-2', items: [
     'PC 大屏上「我的」和设置页的板块间距放宽；手机端排版不变',
     '可关闭的弹窗补上「关闭 / 取消」按钮：鼠标直接点即可，不用再点弹层外面或拖横条',
