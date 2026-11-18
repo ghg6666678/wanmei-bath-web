@@ -81,6 +81,26 @@ const WEB_OFFLINE = false;
 /* ---------- 入口 ---------- */
 
 export default {
+  /* ---------- 上游保活（2026-11-18） ----------
+     实测证据（用户诊断报告 + 人工探测）：zhishui-site 跑在 WorkBuddy 免费托管上，
+     应用闲置约 10 分钟就被平台回收；回收后的冷启动窗口里，CF 反代一律拿到
+     502 Host Error（0.9 秒快速失败，响应是 CF 的 HTML 错误页）。用户端表现就是
+     「网络不太稳定」——15:07-15:12 连败 4 次（距上次访问 1 小时）、15:31 再败
+     （距 15:20 的保活探测约 11 分钟）均为此因。
+
+     缓解：Cron Trigger（wrangler.jsonc triggers.crons）每 5 分钟打一次上游
+     /api/state。为什么这条路安全：
+     · 不带票据 → server.py 的 get_session 直接抛「还没有登录」，**不碰完美校园**，
+       没有任何风控暴露；
+     · 秒级返回，288 次/天，相对 CF 10 万/天额度与平台资源都可以忽略。
+     治本要么换持续运行的托管，要么等平台提供常驻选项；在那之前先保活。 */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(fetch(UPSTREAM + '/api/state?sharecode=' + SHARE_CODE, {
+      headers: { 'User-Agent': 'yuezao-edge-keepalive' }
+    }).then(r => console.log('[keepalive] /api/state ->', r.status))
+      .catch(e => console.log('[keepalive] failed:', String(e))));
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
     const host = url.hostname.toLowerCase();

@@ -23,5 +23,11 @@
       "namespace_id": "1001",
       "simple": { "limit": 10, "period": 60 }
     }
-  ]
+  ],
+
+  // 每 5 分钟保活 ping 一次上游（见 worker.js 的 scheduled 注释：免费托管应用
+  // 闲置约 10 分钟被平台回收，冷启动期间 CF 反代一律 502）。288 次/天，额度内。
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  }
 }
