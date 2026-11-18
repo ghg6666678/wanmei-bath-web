@@ -275,6 +275,13 @@ input[type=text]:disabled{opacity:.45}
 #pageMe .tipnote + .sec-title{margin-top:14px}
 /* 卡片后面接的分区标题同样需要间隔 */
 #pageMe section.card + .sec-title{margin-top:14px}
+/* PC 大屏（≥700px）：内页板块间距整体放宽。手机上紧凑是刻意的，媒体查询外一律不动；
+   设置页（pageSettings）的分区标题此前漏配宽间距（还是默认的 -4px 底边距），桌面端一并统一 */
+@media (min-width:700px){
+  #pageRec .sec-title, #pageMe .sec-title, #pageSettings .sec-title{margin:2px 4px 18px}
+  #pageMe .tipnote + .sec-title, #pageSettings .tipnote + .sec-title,
+  #pageMe section.card + .sec-title, #pageSettings section.card + .sec-title{margin-top:30px}
+}
 .spin{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;
   border-radius:50%;animation:sp .7s linear infinite;display:inline-block;vertical-align:-3px}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -492,7 +499,10 @@ input[type=tel]::placeholder{color:var(--ink3)}
   <h3><span id="bkTitle">预约浴室</span><span class="bkfree" id="bkFree"></span></h3>
   <div class="hint" id="bkHint"></div>
   <div class="warnbox" id="bkWarn" style="display:none"></div>
-  <button class="btn" style="width:100%;padding:15px" id="bkSubmit">立即预约</button>
+  <div style="display:flex;gap:9px">
+    <button class="btn ghost" style="flex:1;padding:15px" id="bkClose">关闭</button>
+    <button class="btn" style="flex:1.6;padding:15px" id="bkSubmit">立即预约</button>
+  </div>
 </div>
 
 <!-- 登录弹层 -->
@@ -514,7 +524,10 @@ input[type=tel]::placeholder{color:var(--ink3)}
     </div>
   </div>
   <div class="warnbox" id="lgWarn" style="display:none"></div>
-  <button class="btn" style="width:100%;padding:15px" id="lgSubmit">登录</button>
+  <div style="display:flex;gap:9px">
+    <button class="btn ghost" style="flex:1;padding:15px" id="lgClose">关闭</button>
+    <button class="btn" style="flex:1.6;padding:15px" id="lgSubmit">登录</button>
+  </div>
   <div class="tipnote" style="text-align:center;margin-top:10px">
     完美校园是单点登录，登录会让原版 App 下线
   </div>
@@ -570,6 +583,7 @@ input[type=tel]::placeholder{color:var(--ink3)}
   <h3 id="pickTitle">选择</h3>
   <div class="hint" id="pickHint"></div>
   <div class="picklist" id="pickList"></div>
+  <button class="btn ghost" style="width:100%;margin-top:14px" id="pickCancel">取消</button>
 </div>
 
 <!-- 年月滚轮：对应原版的 van-datetime-picker type="year-month" -->
@@ -714,7 +728,8 @@ input[type=tel]::placeholder{color:var(--ink3)}
          style="width:100%;margin-top:14px;padding:11px 12px;border-radius:12px;border:1px solid var(--line);
                 background:var(--card);color:var(--ink);font-size:15px">
   <div style="display:flex;gap:9px;margin-top:14px">
-    <button class="btn ghost" style="flex:1" id="balThOff">关闭提醒</button>
+    <button class="btn ghost" style="flex:1" id="balThClose">关闭</button>
+    <button class="btn ghost" style="flex:1.2" id="balThOff">关闭提醒</button>
     <button class="btn" style="flex:1.4" id="balThSave">保存</button>
   </div>
 </div>
@@ -1565,6 +1580,7 @@ $('#bkSubmit').onclick = async () => {
     btn.disabled = false; btn.textContent = '立即预约';
   }
 };
+$('#bkClose').onclick = hideSheet;   /* 鼠标没有下拉手势，桌面端要一个明确的关闭 */
 
 /* 通用确认弹层 */
 let __cfYes = null;
@@ -1753,6 +1769,8 @@ function openPicker(title, hint, options, current, cb, cols) {
     if (on) on.scrollIntoView({block: 'center', inline: 'nearest'});
   });
 }
+
+$('#pickCancel').onclick = hideSheet;   /* 选择器补「取消」，与滚轮/滑块弹层同一叫法 */
 
 /* ---------- 年月滚轮 ----------
    原版用的是 van-datetime-picker type="year-month"：两列上下滚、中间一条选中带。
@@ -2468,6 +2486,8 @@ function openLogin() {
   showSheet('#loginSheet');
 }
 
+$('#lgClose').onclick = hideSheet;   /* 不想现在登录就先关掉，凭据失效时首页会再弹 */
+
 $('#lgSend').onclick = async () => {
   const phone = $('#lgPhone').value.trim();
   if (!/^\d{11}$/.test(phone)) return toast('请填写 11 位手机号', true);
@@ -2597,6 +2617,7 @@ $('#rowBalTh').onclick = () => {
   $('#balThInput').value = (cur === 'off' || !cur) ? '' : String(Number(cur) || 5);
   showSheet('#balThSheet');
 };
+$('#balThClose').onclick = hideSheet;   /* 不改动任何设置，直接关掉弹层 */
 $('#balThOff').onclick = () => {
   setBalTh('off'); renderBalance(); renderMe(); hideSheet(); toast('余额提醒已关闭');
 };
@@ -2744,9 +2765,13 @@ $('#guideWx').onclick = () => {
      2. 把 WEB_BUILD 改成同一个值
    纯后端改动（server.py）不需要动这里。 */
 
-const WEB_BUILD = '2026.11.18';
+const WEB_BUILD = '2026.11.18-2';
 const WEB_LOG_KEY = 'webBuildSeen';
 const WEB_LOG = [
+  { v: '2026.11.18-2', items: [
+    'PC 大屏上「我的」和设置页的板块间距放宽；手机端排版不变',
+    '可关闭的弹窗补上「关闭 / 取消」按钮：鼠标直接点即可，不用再点弹层外面或拖横条',
+  ] },
   { v: '2026.11.18', items: [
     '隐私政策升 v3：写明登录与业务请求会向水控平台上报设备画像（机型、系统版本、构建号与随机设备 ID）',
     '这段画像存在你的浏览器本地，退出登录不会清除（重登仍是同一台「设备」）',
